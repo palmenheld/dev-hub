@@ -1,3 +1,4 @@
+import Link from "next/link";
 const articles = [
   {
     id: 1,
@@ -141,9 +142,12 @@ export default function Home() {
                 </p>
               </div>
 
-              <button className="text-sm font-medium text-green-800">
-                Alle Artikel
-              </button>
+              <Link
+ 		 href="/articles"
+  		className="text-sm font-medium text-green-800"
+					>
+ 			 Alle Artikel
+		</Link>
             </div>
 
             <div className="divide-y">
