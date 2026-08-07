@@ -16,6 +16,11 @@ export function mapWeclappArticle(item: any): Article {
 
         basePrice: 0,
 
+	active:
+  typeof item.active === "boolean"
+    ? item.active
+    : true,
+
         channels: {
 
             shop: "missing",

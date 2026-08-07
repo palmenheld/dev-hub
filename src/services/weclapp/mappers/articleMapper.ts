@@ -26,10 +26,18 @@ export function mapWeclappArticle(
 
     basePrice: 0,
 
+    active:
+  typeof item.active === "boolean"
+    ? item.active
+    : true,
+
     channels: {
       shop: "missing",
       ebay: "missing",
       kleinanzeigen: "missing",
+
+
+	
     },
   };
 }

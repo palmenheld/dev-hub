@@ -8,6 +8,7 @@ export const articles: Article[] = [
     subtitle: "Hanfpalme - Lieferhoehe 100-120 cm",
     stock: 8,
     basePrice: 59.99,
+    active: true,
     channels: {
       shop: "online",
       ebay: "draft",
@@ -21,6 +22,7 @@ export const articles: Article[] = [
     subtitle: "Blaue Palmlilie - Lieferhoehe 80-100 cm",
     stock: 2,
     basePrice: 249,
+    active: true,
     channels: {
       shop: "online",
       ebay: "online",
@@ -34,6 +36,7 @@ export const articles: Article[] = [
     subtitle: "Zitronenbaum - Lieferhoehe 80-100 cm",
     stock: 5,
     basePrice: 44.99,
+    active: true,
     channels: {
       shop: "draft",
       ebay: "missing",

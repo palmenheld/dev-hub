@@ -7,7 +7,7 @@ export type Article = {
   subtitle: string;
   stock: number;
   basePrice: number;
-
+  active: boolean;
   channels: {
     shop: ChannelStatus;
     ebay: ChannelStatus;

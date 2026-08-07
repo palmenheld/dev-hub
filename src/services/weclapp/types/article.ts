@@ -10,6 +10,8 @@ export type WeclappArticle = {
 
   createdDate?: number;
   lastModifiedDate?: number;
+  
+  active?: boolean;
 
   [key: string]: unknown;
 };
