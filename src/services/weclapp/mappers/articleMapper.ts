@@ -1,17 +1,31 @@
 import { Article } from "@/types/article";
 import { WeclappArticle } from "../types/article";
 
-export function mapWeclappArticle(item: WeclappArticle): Article {
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+export function mapWeclappArticle(
+  item: WeclappArticle
+): Article {
   return {
     id: item.id,
-    sku: item.articleNumber ?? item.id,
-    name: item.name ?? "Ohne Namen",
+
+    sku:
+      stringValue(item.articleNumber) ||
+      item.id,
+
+    name:
+      stringValue(item.name) ||
+      "Ohne Namen",
+
     subtitle:
-      typeof item.description === "string"
-        ? item.description
-        : "",
+      stringValue(item.description),
+
     stock: 0,
+
     basePrice: 0,
+
     channels: {
       shop: "missing",
       ebay: "missing",
