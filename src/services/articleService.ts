@@ -1,9 +1,17 @@
-import { articles } from "@/data/articles";
+import { getArticle, getArticles } from "@/services/weclapp";
+import { mapWeclappArticle } from "@/services/weclapp/mappers/articleMapper";
 
-export async function getArticles() {
-  return articles;
+export async function getAllArticles() {
+  const response = await getArticles({
+    page: 1,
+    pageSize: 100,
+  });
+
+  return (response.result ?? []).map(mapWeclappArticle);
 }
 
 export async function getArticleById(id: string) {
-  return articles.find((article) => article.id === id) ?? null;
+  const article = await getArticle(id);
+
+  return mapWeclappArticle(article);
 }

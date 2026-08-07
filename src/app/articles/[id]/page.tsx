@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { articles } from "@/data/articles";
 import ArticleEditor from "./ArticleEditor";
+import { getArticleById } from "@/services/articleService";
 
 export default async function ArticlePage({
   params,
@@ -10,7 +10,7 @@ export default async function ArticlePage({
 }) {
   const { id } = await params;
 
-  const article = articles.find((item) => item.id === id);
+  const article = await getArticleById(id);
 
   if (!article) {
     notFound();

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { articles } from "@/data/articles";
+import { getAllArticles } from "@/services/articleService";
 import { ChannelStatus } from "@/types/article";
 
 function StatusBadge({
@@ -33,8 +33,9 @@ function StatusBadge({
   );
 }
 
-export default function ArticleList() {
-  return (
+export default async function ArticleList() {
+	const articles = await getAllArticles();  
+return (
     <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
       <div className="border-b px-5 py-4">
         <h2 className="font-semibold">Artikel</h2>
