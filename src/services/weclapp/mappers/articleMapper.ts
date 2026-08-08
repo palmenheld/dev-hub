@@ -6,7 +6,8 @@ function stringValue(value: unknown): string {
 }
 
 export function mapWeclappArticle(
-  item: WeclappArticle
+  item: WeclappArticle,
+  gross1Price = 0
 ): Article {
   return {
     id: item.id,
@@ -24,20 +25,17 @@ export function mapWeclappArticle(
 
     stock: 0,
 
-    basePrice: 0,
+    basePrice: gross1Price,
 
     active:
-  typeof item.active === "boolean"
-    ? item.active
-    : true,
+      typeof item.active === "boolean"
+        ? item.active
+        : true,
 
     channels: {
       shop: "missing",
       ebay: "missing",
       kleinanzeigen: "missing",
-
-
-	
     },
   };
 }

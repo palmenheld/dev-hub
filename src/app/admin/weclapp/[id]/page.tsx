@@ -78,6 +78,37 @@ export default async function WeclappArticleInspectorPage({
         </div>
       </div>
     ))}
+
+<div className="mt-8 rounded-2xl border bg-white p-5 shadow-sm">
+  <h2 className="font-semibold">
+    Relevante Artikelfelder
+  </h2>
+
+  <div className="mt-4 space-y-3">
+    {Object.entries(article)
+      .filter(([key]) =>
+        /price|sales|purchase|stock|warehouse|inventory|quantity|image/i.test(key)
+      )
+      .map(([key, value]) => (
+        <div
+          key={key}
+          className="grid gap-2 rounded-xl bg-slate-50 p-3 md:grid-cols-[220px_1fr]"
+        >
+          <div className="font-mono text-sm font-semibold">
+            {key}
+          </div>
+
+          <div className="break-all font-mono text-xs text-slate-700">
+            {typeof value === "object"
+              ? JSON.stringify(value)
+              : String(value ?? "")}
+          </div>
+        </div>
+      ))}
+  </div>
+</div>
+
+
   </div>
 </div>
         </div>
