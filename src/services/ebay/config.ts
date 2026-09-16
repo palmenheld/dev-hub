@@ -86,9 +86,17 @@ export function requireEbayOAuthConfiguration() {
   };
 }
 
+export function normalizeEbayMarketplaceId(value?: string) {
+  const normalized = (value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/^EBAY-/, "EBAY_");
+  return normalized || "EBAY_DE";
+}
+
 export function getEnvironmentSettings(): EbayPublishingSettings {
   return {
-    marketplaceId: process.env.EBAY_MARKETPLACE_ID?.trim() || "EBAY_DE",
+    marketplaceId: normalizeEbayMarketplaceId(process.env.EBAY_MARKETPLACE_ID),
     currency: process.env.EBAY_CURRENCY?.trim() || "EUR",
     merchantLocationKey:
       process.env.EBAY_MERCHANT_LOCATION_KEY?.trim() || "",

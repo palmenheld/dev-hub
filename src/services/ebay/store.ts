@@ -5,7 +5,11 @@ import type {
   EbayListingTemplate,
   EbayPublishingSettings,
 } from "@/types/ebay";
-import { getEbayEnvironment, getEnvironmentSettings } from "./config";
+import {
+  getEbayEnvironment,
+  getEnvironmentSettings,
+  normalizeEbayMarketplaceId,
+} from "./config";
 
 export function getEbayDataDirectory() {
   const base =
@@ -39,7 +43,9 @@ export async function getEbaySettings(): Promise<EbayPublishingSettings> {
     path.join(getEbayDataDirectory(), "settings.json")
   );
   return {
-    marketplaceId: stored?.marketplaceId || defaults.marketplaceId,
+    marketplaceId: normalizeEbayMarketplaceId(
+      stored?.marketplaceId || defaults.marketplaceId
+    ),
     currency: stored?.currency || defaults.currency,
     merchantLocationKey:
       stored?.merchantLocationKey || defaults.merchantLocationKey,

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import type { EbayPublishingSettings } from "@/types/ebay";
-import { getEbayConnection } from "@/services/ebay/config";
+import {
+  getEbayConnection,
+  normalizeEbayMarketplaceId,
+} from "@/services/ebay/config";
 import { loadEbaySetup } from "@/services/ebay/metadata";
 import { getEbaySettings, saveEbaySettings } from "@/services/ebay/store";
 import { assertSameOrigin } from "@/services/requestSecurity";
@@ -12,7 +15,7 @@ function normalize(input: unknown): EbayPublishingSettings {
       : {};
   const read = (key: string, maximum = 200) =>
     typeof value[key] === "string" ? value[key].trim().slice(0, maximum) : "";
-  const marketplaceId = read("marketplaceId", 30);
+  const marketplaceId = normalizeEbayMarketplaceId(read("marketplaceId", 30));
   const currency = read("currency", 3).toUpperCase();
   if (!/^EBAY_[A-Z]{2,5}$/.test(marketplaceId)) {
     throw new Error("Der eBay-Marktplatz ist ungültig.");
