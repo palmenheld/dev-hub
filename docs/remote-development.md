@@ -87,6 +87,45 @@ Dieses PowerShell-Fenster bleibt während der Nutzung geöffnet. Im Browser wird
 danach `http://localhost:33001` aufgerufen. Der Tunnel zeigt die Serverinstanz;
 er ersetzt nicht das lokale Klonen des Repositorys.
 
+## Öffentliche Testadresse
+
+Die aktuelle Server-Testversion ist zusätzlich unter
+`https://dev-hub.palmenheld.de/` erreichbar. Die Domain ist durch eine separate
+Browser-Anmeldung geschützt. Benutzername und Passwort werden nicht im
+Repository gespeichert.
+
+Der Aufruf läuft über folgende Stationen:
+
+1. Plesk nimmt die verschlüsselte HTTPS-Verbindung an.
+2. `ops/plesk-dev-proxy.cjs` prüft die Browser-Anmeldung.
+3. Der Proxy leitet die Anfrage intern an `127.0.0.1:3001` weiter.
+4. Dort läuft der Node.js-22-Entwicklungscontainer mit der Arbeitskopie aus
+   `/srv/palmenheld-dev-hub`.
+
+Die Zugangsdaten liegen ausschließlich auf dem Server in:
+
+```text
+/var/www/vhosts/palmenheld.de/dev-hub.palmenheld.de/.dev-hub-basic-auth.env
+```
+
+Nach einer Passwortänderung wird der Plesk-Einstieg neu geladen:
+
+```bash
+touch /var/www/vhosts/palmenheld.de/dev-hub.palmenheld.de/app/tmp/restart.txt
+```
+
+Um einen neuen Git-Stand in der Testversion bereitzustellen:
+
+```bash
+cd /srv/palmenheld-dev-hub
+git pull --ff-only origin chore/remote-development-setup
+docker restart palmenheld-dev-hub
+```
+
+Der Docker-Port bleibt absichtlich an `127.0.0.1` gebunden. Er darf nicht direkt
+öffentlich freigegeben werden, weil die Anwendung Schreibfunktionen für
+Shopware und eBay enthält.
+
 ## Wichtige Trennung
 
 - GitHub: Quellcode, Dokumentation und Entwicklungscontainer
