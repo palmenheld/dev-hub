@@ -31,7 +31,7 @@ services:
     ports:
       - "127.0.0.1:3002:3000"
     volumes:
-      - ..:/workspace:ro
+      - ..:/workspace
       - preview_node_modules:/workspace/node_modules
       - preview_next:/workspace/.next
       - ../.data:/workspace/.data
