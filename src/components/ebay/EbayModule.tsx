@@ -11,12 +11,30 @@ import type {
   EbayListingDraft,
   EbayListingOptions,
   EbayPublishingSettings,
+  EbaySandboxBootstrapInput,
+  EbaySandboxBootstrapResult,
+  EbaySandboxBootstrapStep,
   EbaySetup,
 } from "@/types/ebay";
 import type { ProductCandidate } from "@/types/shopwarePublishing";
 
 type Feedback = { kind: "success" | "error"; message: string };
 const MAX_BATCH = 10;
+const DEFAULT_SANDBOX_SETUP: EbaySandboxBootstrapInput = {
+  merchantLocationKey: "palmenheld-lager",
+  locationName: "Palmenheld Lager",
+  postalCode: "",
+  city: "",
+  country: "DE",
+  fulfillmentPolicyName: "Palmenheld Standardversand",
+  shippingServiceCode: "DE_DHLPaket",
+  shippingCost: 6.9,
+  handlingDays: 2,
+  paymentPolicyName: "Palmenheld Zahlung",
+  returnPolicyName: "Palmenheld Rückgabe 30 Tage",
+  returnDays: 30,
+  returnShippingCostPayer: "BUYER",
+};
 
 function money(value?: number, currency = "EUR") {
   if (value === undefined) return "–";
@@ -107,6 +125,11 @@ export default function EbayModule({
   const [templatePriceAdjustment, setTemplatePriceAdjustment] = useState("0");
   const [templateQuantityLimit, setTemplateQuantityLimit] = useState("");
   const [templateDefault, setTemplateDefault] = useState(true);
+  const [bootstrapForm, setBootstrapForm] = useState({
+    ...DEFAULT_SANDBOX_SETUP,
+  });
+  const [bootstrapSteps, setBootstrapSteps] =
+    useState<EbaySandboxBootstrapStep[]>([]);
 
   useEffect(() => {
     const parameters = new URLSearchParams(window.location.search);
@@ -324,6 +347,51 @@ export default function EbayModule({
         message: payload.setup.warnings?.length
           ? "Die eBay-OAuth-Verbindung funktioniert. Hinweise aus der Sandbox werden unten einzeln angezeigt."
           : "eBay ist verbunden. Bitte einmal Lagerort und Richtlinien wählen.",
+      });
+    } catch (error) {
+      setFeedback({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Unbekannter Fehler",
+      });
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function bootstrapSandbox() {
+    if (
+      !window.confirm(
+        "Der Hub aktiviert jetzt eBay-Geschäftsrichtlinien und legt Lagerort sowie drei Sandbox-Richtlinien an. Es wird keine Anzeige veröffentlicht. Fortfahren?"
+      )
+    ) return;
+
+    setBusy("sandbox-bootstrap");
+    setFeedback(null);
+    setBootstrapSteps([]);
+    try {
+      const response = await fetch("/api/channels/ebay/bootstrap", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bootstrapForm),
+      });
+      const payload = (await response.json()) as
+        | EbaySandboxBootstrapResult
+        | { error?: string };
+      if (!response.ok || !("setup" in payload)) {
+        throw new Error(
+          ("error" in payload && payload.error) ||
+            "Die Sandbox-Grundeinrichtung ist fehlgeschlagen."
+        );
+      }
+      setSetup(payload.setup);
+      setSettings(payload.setup.settings);
+      setConnection(payload.setup.connection);
+      setBootstrapSteps(payload.steps);
+      setFeedback({
+        kind: payload.completed ? "success" : "error",
+        message: payload.completed
+          ? "Die eBay-Sandbox ist vollständig vorbereitet und als Ziel gespeichert."
+          : "eBay hat nur einen Teil der Einrichtung angenommen. Die Ergebnisse stehen direkt darunter; fehlgeschlagene Schritte können erneut versucht werden.",
       });
     } catch (error) {
       setFeedback({
@@ -1044,6 +1112,235 @@ export default function EbayModule({
               </ul>
             </div>
           ) : null}
+          {connection.environment === "sandbox" && (
+            <details
+              className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4"
+              open={Boolean(setup.warnings?.length)}
+            >
+              <summary className="cursor-pointer font-bold text-blue-950">
+                eBay-Sandbox automatisch einrichten
+              </summary>
+              <p className="mt-2 text-sm text-blue-900">
+                Der Hub aktiviert die Geschäftsrichtlinien und legt einen
+                Lagerort sowie je eine Versand-, Zahlungs- und
+                Rückgaberichtlinie an. Dabei wird keine Anzeige veröffentlicht.
+              </p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <label className="text-sm font-semibold">
+                  Lagerort-Schlüssel
+                  <input
+                    value={bootstrapForm.merchantLocationKey}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        merchantLocationKey: event.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Name des Lagerorts
+                  <input
+                    value={bootstrapForm.locationName}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        locationName: event.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Postleitzahl
+                  <input
+                    value={bootstrapForm.postalCode}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        postalCode: event.target.value,
+                      })
+                    }
+                    placeholder="z. B. 47608"
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Ort <span className="font-normal text-slate-500">(optional)</span>
+                  <input
+                    value={bootstrapForm.city}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        city: event.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Versanddienst
+                  <select
+                    value={bootstrapForm.shippingServiceCode}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        shippingServiceCode: event.target.value,
+                      })
+                    }
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  >
+                    <option value="DE_DHLPaket">DHL Paket</option>
+                    <option value="DE_HermesPaket">Hermes Paket</option>
+                    <option value="DE_DPD">DPD</option>
+                    <option value="DE_GLS">GLS</option>
+                    <option value="DE_Paket">Paketversand</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold">
+                  Versandkosten in EUR
+                  <input
+                    type="number"
+                    min="0"
+                    max="9999"
+                    step="0.01"
+                    value={bootstrapForm.shippingCost}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        shippingCost: Number(event.target.value),
+                      })
+                    }
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  />
+                </label>
+                <label className="text-sm font-semibold">
+                  Bearbeitungszeit
+                  <select
+                    value={bootstrapForm.handlingDays}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        handlingDays: Number(event.target.value),
+                      })
+                    }
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  >
+                    {[0, 1, 2, 3, 5, 10].map((days) => (
+                      <option key={days} value={days}>
+                        {days === 0 ? "am selben Tag" : `${days} Werktag${days === 1 ? "" : "e"}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm font-semibold">
+                  Rückgabefrist
+                  <select
+                    value={bootstrapForm.returnDays}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        returnDays: Number(event.target.value) as 30 | 60,
+                      })
+                    }
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  >
+                    <option value={30}>30 Tage</option>
+                    <option value={60}>60 Tage</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold">
+                  Rücksendekosten
+                  <select
+                    value={bootstrapForm.returnShippingCostPayer}
+                    onChange={(event) =>
+                      setBootstrapForm({
+                        ...bootstrapForm,
+                        returnShippingCostPayer: event.target.value as
+                          | "BUYER"
+                          | "SELLER",
+                      })
+                    }
+                    className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+                  >
+                    <option value="BUYER">Käufer trägt die Kosten</option>
+                    <option value="SELLER">Verkäufer trägt die Kosten</option>
+                  </select>
+                </label>
+              </div>
+              <details className="mt-4 rounded-xl border border-blue-200 bg-white p-3">
+                <summary className="cursor-pointer text-sm font-semibold">
+                  Namen der Richtlinien anpassen
+                </summary>
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  {([
+                    ["fulfillmentPolicyName", "Versandrichtlinie"],
+                    ["paymentPolicyName", "Zahlungsrichtlinie"],
+                    ["returnPolicyName", "Rückgaberichtlinie"],
+                  ] as const).map(([key, label]) => (
+                    <label key={key} className="text-sm font-semibold">
+                      {label}
+                      <input
+                        value={bootstrapForm[key]}
+                        onChange={(event) =>
+                          setBootstrapForm({
+                            ...bootstrapForm,
+                            [key]: event.target.value,
+                          })
+                        }
+                        className="mt-1 block w-full rounded-xl border px-3 py-2.5 font-normal"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </details>
+              <button
+                type="button"
+                onClick={bootstrapSandbox}
+                disabled={Boolean(busy) || !bootstrapForm.postalCode.trim()}
+                className="mt-4 rounded-xl bg-[var(--ph-green-dark)] px-5 py-3 font-semibold text-white disabled:opacity-40"
+              >
+                {busy === "sandbox-bootstrap"
+                  ? "Sandbox wird eingerichtet…"
+                  : "eBay-Sandbox jetzt einrichten"}
+              </button>
+              {!bootstrapForm.postalCode.trim() && (
+                <p className="mt-2 text-xs font-semibold text-amber-800">
+                  Bitte zuerst die Postleitzahl des Versandlagers eintragen.
+                </p>
+              )}
+              {bootstrapSteps.length > 0 && (
+                <ul className="mt-4 space-y-2">
+                  {bootstrapSteps.map((item) => (
+                    <li
+                      key={item.key}
+                      className="flex flex-col gap-1 rounded-lg border bg-white px-3 py-2 text-sm sm:flex-row sm:items-start"
+                    >
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
+                          item.status === "failed"
+                            ? "bg-red-100 text-red-800"
+                            : item.status === "created"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {item.status === "failed"
+                          ? "Fehlgeschlagen"
+                          : item.status === "created"
+                            ? "Angelegt"
+                            : "Vorhanden"}
+                      </span>
+                      <span>
+                        <strong>{item.label}:</strong> {item.detail}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </details>
+          )}
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {([
               ["merchantLocationKey", "Lagerort", setup.locations],
@@ -1061,6 +1358,12 @@ export default function EbayModule({
                   className="mt-1 block w-full rounded-xl border px-3 py-2.5 font-normal"
                 >
                   <option value="">Bitte auswählen</option>
+                  {settings[key] &&
+                    !options.some((option) => option.id === settings[key]) && (
+                      <option value={settings[key]}>
+                        Gespeichert: {settings[key]}
+                      </option>
+                    )}
                   {options.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.label}{option.detail ? ` – ${option.detail}` : ""}
@@ -1073,7 +1376,7 @@ export default function EbayModule({
           <button
             type="button"
             onClick={saveSetup}
-            disabled={busy === "setup"}
+            disabled={Boolean(busy)}
             className="mt-4 rounded-xl bg-[var(--ph-green-dark)] px-5 py-3 font-semibold text-white disabled:opacity-40"
           >
             {busy === "setup" ? "Speichert…" : "eBay-Ziel speichern"}

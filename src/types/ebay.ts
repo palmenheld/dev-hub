@@ -104,6 +104,35 @@ export type EbaySetup = {
   warnings?: string[];
 };
 
+export type EbaySandboxBootstrapInput = {
+  merchantLocationKey: string;
+  locationName: string;
+  postalCode: string;
+  city: string;
+  country: string;
+  fulfillmentPolicyName: string;
+  shippingServiceCode: string;
+  shippingCost: number;
+  handlingDays: number;
+  paymentPolicyName: string;
+  returnPolicyName: string;
+  returnDays: 30 | 60;
+  returnShippingCostPayer: "BUYER" | "SELLER";
+};
+
+export type EbaySandboxBootstrapStep = {
+  key: "program" | "location" | "fulfillment" | "payment" | "return";
+  label: string;
+  status: "created" | "existing" | "failed";
+  detail: string;
+};
+
+export type EbaySandboxBootstrapResult = {
+  completed: boolean;
+  setup: EbaySetup;
+  steps: EbaySandboxBootstrapStep[];
+};
+
 export type EbayCategorySuggestion = {
   id: string;
   name: string;
