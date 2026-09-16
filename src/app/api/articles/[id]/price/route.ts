@@ -1,63 +1,20 @@
 import { NextResponse } from "next/server";
-import { updateGross1Price } from "@/services/weclapp";
+import { assertSameOrigin } from "@/services/requestSecurity";
 
-export async function PUT(
-  request: Request,
-  {
-    params,
-  }: {
-    params: Promise<{ id: string }>;
-  }
-) {
+export async function PUT(request: Request) {
   try {
-    const { id } = await params;
-
-    const body = await request.json();
-
-    const price = Number(body.price);
-
-    if (
-      !Number.isFinite(price) ||
-      price < 0
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Ungültiger Preis.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    await updateGross1Price(
-      id,
-      price
-    );
-
-    return NextResponse.json({
-      success: true,
-      price,
-    });
-  } catch (error) {
-    console.error(
-      "GROSS1 Preisänderung fehlgeschlagen:",
-      error
-    );
-
+    assertSameOrigin(request);
     return NextResponse.json(
       {
         success: false,
-
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unbekannter Fehler",
+        error: "Direkte Preisänderungen sind deaktiviert. Bitte die kontrollierte Preisvorschau verwenden.",
       },
-      {
-        status: 500,
-      }
+      { status: 410 }
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "Ungültige Anfrage" },
+      { status: 403 }
     );
   }
 }

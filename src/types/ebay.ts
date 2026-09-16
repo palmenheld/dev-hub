@@ -1,0 +1,186 @@
+import type {
+  DraftValidation,
+  ProductCandidate,
+  ProductResearch,
+  ResearchSource,
+} from "@/types/shopwarePublishing";
+
+export type EbayEnvironment = "sandbox" | "production";
+export type EbayConnectionState =
+  | "not_configured"
+  | "configured"
+  | "connected"
+  | "error";
+
+export type EbayPublishingSettings = {
+  marketplaceId: string;
+  currency: string;
+  merchantLocationKey: string;
+  fulfillmentPolicyId: string;
+  paymentPolicyId: string;
+  returnPolicyId: string;
+};
+
+export type EbayConditionOption = {
+  id: string;
+  value: string;
+  label: string;
+  helpText?: string;
+  restricted: boolean;
+};
+
+export type EbayNegotiatedPriceOptions = {
+  enabled: boolean;
+  autoAcceptEnabled: boolean;
+  autoDeclineEnabled: boolean;
+};
+
+export type EbayPackageDetails = {
+  packageType: string;
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+  weightKg?: number;
+  shippingIrregular: boolean;
+};
+
+export type EbayListingOptions = {
+  subtitle: string;
+  condition: string;
+  conditionDescription: string;
+  brand: string;
+  mpn: string;
+  ean: string;
+  imageUrls: string[];
+  quantityLimitPerBuyer?: number;
+  includeCatalogProductDetails: boolean;
+  bestOfferEnabled: boolean;
+  bestOfferAutoAcceptPrice?: number;
+  bestOfferAutoDeclinePrice?: number;
+  packageDetails?: EbayPackageDetails;
+};
+export type EbayListingTemplate = {
+  id: string;
+  name: string;
+  categoryId: string;
+  categoryName: string;
+  aspects: Record<string, string[]>;
+  listingOptions?: Omit<EbayListingOptions, "imageUrls">;
+  titlePattern: string;
+  priceAdjustmentPercent: number;
+  quantityLimit?: number;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EbayConnection = {
+  state: EbayConnectionState;
+  configured: boolean;
+  authorizationReady: boolean;
+  publishReady: boolean;
+  environment: EbayEnvironment;
+  label: string;
+  description: string;
+  missingConfiguration: string[];
+  missingPublishingSetup: string[];
+  oauthCallbackUrl?: string;
+  sellerName?: string;
+};
+
+export type EbayOption = {
+  id: string;
+  label: string;
+  detail?: string;
+};
+
+export type EbaySetup = {
+  connection: EbayConnection;
+  settings: EbayPublishingSettings;
+  locations: EbayOption[];
+  fulfillmentPolicies: EbayOption[];
+  paymentPolicies: EbayOption[];
+  returnPolicies: EbayOption[];
+};
+
+export type EbayCategorySuggestion = {
+  id: string;
+  name: string;
+  path: string;
+};
+
+export type EbayAspect = {
+  name: string;
+  required: boolean;
+  recommended: boolean;
+  mode: "selection_only" | "free_text";
+  values: string[];
+  maxValues: number;
+  maxLength: number;
+};
+
+export type EbayGeneratedCopy = {
+  version: "ebay-v2";
+  title: string;
+  intro: string;
+  sellingPoints: string[];
+  appearance: string;
+  location: string;
+  care: string;
+  winter: string;
+  searchTerms: string[];
+  evidence: {
+    intro: string[];
+    sellingPoints: string[][];
+    appearance: string[];
+    location: string[];
+    care: string[];
+    winter: string[];
+  };
+};
+
+export type EbayListingDraft = {
+  id: string;
+  status:
+    | "ready"
+    | "blocked"
+    | "publishing"
+    | "reconciliation_required"
+    | "management_reconciliation_required"
+    | "paused"
+    | "published";
+  createdAt: string;
+  updatedAt: string;
+  environment: EbayEnvironment;
+  marketplaceId: string;
+  publishingSettings: EbayPublishingSettings;
+  source: ProductCandidate;
+  title: string;
+  descriptionHtml: string;
+  categoryId: string;
+  categoryName: string;
+  condition: string;
+  options?: EbayListingOptions;
+  aspects: Record<string, string[]>;
+  price: number;
+  quantity: number;
+  generatedCopy?: EbayGeneratedCopy;
+  research: ProductResearch;
+  sources: ResearchSource[];
+  researchValidation: DraftValidation;
+  validation: DraftValidation;
+  manuallyEdited: boolean;
+  templateId?: string;
+  templateName?: string;
+  approvedAt?: string;
+  offerId?: string;
+  listingId?: string;
+  pendingOfferId?: string;
+  ebayOfferStatus?: string;
+  ebayListingStatus?: string;
+  lastSyncedAt?: string;
+  pausedAt?: string;
+  reactivatedAt?: string;
+  pendingManagementAction?: "pause" | "reactivate";
+  lastError?: string;
+};

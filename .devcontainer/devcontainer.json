@@ -1,0 +1,30 @@
+{
+  "name": "Palmenheld Hub (Node 22)",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+  "remoteUser": "node",
+  "postCreateCommand": "npm ci",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Palmenheld Hub",
+      "onAutoForward": "notify"
+    }
+  },
+  "mounts": [
+    "source=palmenheld-dev-hub-npm-cache,target=/home/node/.npm,type=volume"
+  ],
+  "containerEnv": {
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

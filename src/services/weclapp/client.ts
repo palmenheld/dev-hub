@@ -1,8 +1,7 @@
-const baseUrl = process.env.WECLAPP_BASE_URL;
-const apiToken = process.env.WECLAPP_API_TOKEN;
-
-function getConfiguration() {
-  if (!baseUrl) {
+export function getWeclappConfiguration() {
+  const configuredBaseUrl = process.env.WECLAPP_BASE_URL?.trim();
+  const apiToken = process.env.WECLAPP_API_TOKEN?.trim();
+  if (!configuredBaseUrl) {
     throw new Error("WECLAPP_BASE_URL ist nicht gesetzt.");
   }
 
@@ -10,8 +9,16 @@ function getConfiguration() {
     throw new Error("WECLAPP_API_TOKEN ist nicht gesetzt.");
   }
 
+  const tenantBaseUrl = configuredBaseUrl
+    .replace(/\/+$/, "")
+    .replace(/\/webapp\/api\/v[12]$/i, "");
+  const parsed = new URL(tenantBaseUrl);
+  if (parsed.protocol !== "https:") {
+    throw new Error("WECLAPP_BASE_URL muss HTTPS verwenden.");
+  }
+
   return {
-    baseUrl: baseUrl.replace(/\/$/, ""),
+    tenantBaseUrl,
     apiToken,
   };
 }
@@ -22,14 +29,24 @@ export type WeclappRequestOptions = {
   body?: unknown;
 };
 
+export class WeclappHttpError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "WeclappHttpError";
+    this.status = status;
+  }
+}
+
 export async function weclappRequest<T>(
   endpoint: string,
   options: WeclappRequestOptions = {}
 ): Promise<T> {
-  const config = getConfiguration();
+  const config = getWeclappConfiguration();
 
   const url = new URL(
-    `${config.baseUrl}/webapp/api/v2/${endpoint.replace(/^\//, "")}`
+    `${config.tenantBaseUrl}/webapp/api/v2/${endpoint.replace(/^\//, "")}`
   );
 
   if (options.query) {
@@ -55,12 +72,14 @@ export async function weclappRequest<T>(
         : undefined,
 
     cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {
     const responseBody = await response.text();
 
-    throw new Error(
+    throw new WeclappHttpError(
+      response.status,
       `Weclapp API ${response.status} ${response.statusText}: ${responseBody.slice(
         0,
         1000
@@ -68,5 +87,7 @@ export async function weclappRequest<T>(
     );
   }
 
-  return response.json() as Promise<T>;
+  if (response.status === 204) return {} as T;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : {}) as T;
 }
