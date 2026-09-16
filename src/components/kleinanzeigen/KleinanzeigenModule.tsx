@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import {
   KleinanzeigenConnection,
   KleinanzeigenListing,
@@ -251,7 +252,7 @@ export default function KleinanzeigenModule({
     try {
       const response = await fetch(
         `/api/channels/kleinanzeigen/listings/${id}/${action}`,
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         listing?: KleinanzeigenListing;

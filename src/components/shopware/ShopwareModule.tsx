@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import {
   ShopwareConnection,
   ShopwareProduct,
@@ -93,9 +94,7 @@ export default function ShopwareModule({
     setFeedback(null);
 
     try {
-      const response = await fetch("/api/channels/shopware/connection", {
-        method: "POST",
-      });
+      const response = await fetch("/api/channels/shopware/connection", emptyJsonPost());
       const payload = (await response.json()) as {
         connection?: ShopwareConnection;
         error?: string;

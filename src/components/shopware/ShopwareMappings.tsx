@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import { ShopwareSyncSettings } from "@/types/shopwareSync";
 
 type Option = { id: string; label: string; detail?: string };
@@ -101,9 +102,7 @@ export default function ShopwareMappings({
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/channels/shopware/sync/options", {
-        method: "POST",
-      });
+      const response = await fetch("/api/channels/shopware/sync/options", emptyJsonPost());
       const payload = (await response.json()) as {
         options?: IntegrationOptions;
         error?: string;

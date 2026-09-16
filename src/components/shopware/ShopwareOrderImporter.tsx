@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import {
   OrderImportCorrection,
   OrderImportPlan,
@@ -54,9 +55,7 @@ export default function ShopwareOrderImporter({
     setFeedback("");
     setPlan(null);
     try {
-      const response = await fetch("/api/channels/shopware/sync/orders", {
-        method: "POST",
-      });
+      const response = await fetch("/api/channels/shopware/sync/orders", emptyJsonPost());
       const payload = (await response.json()) as {
         orders?: ShopwareOrderCandidate[];
         error?: string;
@@ -157,7 +156,7 @@ export default function ShopwareOrderImporter({
     try {
       const response = await fetch(
         `/api/channels/shopware/sync/order-plans/${plan.id}/${action}`,
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         plan?: OrderImportPlan;

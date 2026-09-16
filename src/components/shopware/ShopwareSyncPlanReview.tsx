@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import { SyncPlan } from "@/types/shopwareSync";
 
 const STATE_LABELS = {
@@ -67,7 +68,7 @@ export default function ShopwareSyncPlanReview({
     try {
       const response = await fetch(
         `/api/channels/shopware/sync/plans/${plan.id}/approve`,
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         plan?: SyncPlan;
@@ -100,7 +101,7 @@ export default function ShopwareSyncPlanReview({
     try {
       const response = await fetch(
         `/api/channels/shopware/sync/plans/${plan.id}/apply`,
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         plan?: SyncPlan;
@@ -128,7 +129,7 @@ export default function ShopwareSyncPlanReview({
     try {
       const response = await fetch(
         `/api/channels/shopware/sync/plans/${plan.id}/retry`,
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         plan?: SyncPlan;

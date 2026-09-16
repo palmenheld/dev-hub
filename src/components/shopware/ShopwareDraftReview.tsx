@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import { ShopwareProductDraft } from "@/types/shopwarePublishing";
 
 export default function ShopwareDraftReview({
@@ -102,7 +103,7 @@ export default function ShopwareDraftReview({
     try {
       const response = await fetch(
         `/api/channels/shopware/drafts/${draft.id}/approve`,
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         draft?: ShopwareProductDraft;

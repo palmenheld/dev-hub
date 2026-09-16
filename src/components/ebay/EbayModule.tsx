@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import type {
   EbayAspect,
   EbayCategorySuggestion,
@@ -305,9 +306,7 @@ export default function EbayModule({
     setBusy("connection");
     setFeedback(null);
     try {
-      const response = await fetch("/api/channels/ebay/connection", {
-        method: "POST",
-      });
+      const response = await fetch("/api/channels/ebay/connection", emptyJsonPost());
       const payload = (await response.json()) as {
         setup?: EbaySetup;
         connection?: EbayConnection;
@@ -338,9 +337,7 @@ export default function EbayModule({
     setBusy("authorization");
     setFeedback(null);
     try {
-      const response = await fetch("/api/channels/ebay/oauth/start", {
-        method: "POST",
-      });
+      const response = await fetch("/api/channels/ebay/oauth/start", emptyJsonPost());
       const payload = (await response.json()) as {
         authorizationUrl?: string;
         error?: string;
@@ -816,12 +813,11 @@ export default function EbayModule({
     try {
       const response = await fetch(
         `/api/channels/ebay/drafts/${active.id}/${action}`,
-        {
-          method: "POST",
-          headers: publishKey
+        emptyJsonPost(
+          publishKey
             ? { "X-Palmenheld-Publish-Key": publishKey }
-            : undefined,
-        }
+            : {}
+        )
       );
       const payload = (await response.json()) as {
         draft?: EbayListingDraft;
@@ -882,10 +878,9 @@ export default function EbayModule({
       try {
         const response = await fetch(
           `/api/channels/ebay/drafts/${item.id}/publish`,
-          {
-            method: "POST",
-            headers: { "X-Palmenheld-Publish-Key": publishKey },
-          }
+          emptyJsonPost({
+            "X-Palmenheld-Publish-Key": publishKey,
+          })
         );
         const payload = (await response.json()) as {
           draft?: EbayListingDraft;

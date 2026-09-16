@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import {
   ShopwareSyncSettings,
   SyncCapability,
@@ -115,7 +116,7 @@ export default function ShopwareSyncCenter({
     try {
       const response = await fetch(
         "/api/channels/shopware/sync/compatibility",
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         compatibility?: Compatibility;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { emptyJsonPost } from "@/lib/http";
 import {
   ProductCandidate,
   PublishingSetup,
@@ -368,7 +369,7 @@ export default function ShopwareProductCreator({
     try {
       const response = await fetch(
         `/api/channels/shopware/drafts/${draft.id}/publish`,
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         draft?: ShopwareProductDraft;
@@ -416,7 +417,7 @@ export default function ShopwareProductCreator({
       try {
         const response = await fetch(
           "/api/channels/shopware/drafts/" + item.id + "/publish",
-          { method: "POST" }
+          emptyJsonPost()
         );
         const payload = (await response.json()) as {
           draft?: ShopwareProductDraft;
@@ -454,7 +455,7 @@ export default function ShopwareProductCreator({
     try {
       const response = await fetch(
         `/api/channels/shopware/drafts/${draft.id}/reconcile`,
-        { method: "POST" }
+        emptyJsonPost()
       );
       const payload = (await response.json()) as {
         draft?: ShopwareProductDraft;
