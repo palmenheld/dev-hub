@@ -89,7 +89,7 @@ export default function EbayModule({
   const [drafts, setDrafts] = useState<EbayListingDraft[]>([]);
   const [active, setActive] = useState<EbayListingDraft | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [onlyReady, setOnlyReady] = useState(true);
+  const [onlyReady, setOnlyReady] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(initialFeedback);
@@ -321,7 +321,9 @@ export default function EbayModule({
       setConnection(payload.setup.connection);
       setFeedback({
         kind: "success",
-        message: "eBay ist verbunden. Bitte einmal Lagerort und Richtlinien wählen.",
+        message: payload.setup.warnings?.length
+          ? "Die eBay-OAuth-Verbindung funktioniert. Hinweise aus der Sandbox werden unten einzeln angezeigt."
+          : "eBay ist verbunden. Bitte einmal Lagerort und Richtlinien wählen.",
       });
     } catch (error) {
       setFeedback({
@@ -418,6 +420,13 @@ export default function EbayModule({
       setHasMore(Boolean(payload.hasMore));
       setSelected([]);
       if (draftPayload.drafts) setDrafts(draftPayload.drafts);
+      const eligibleCount = payload.candidates.filter(
+        (candidate) => candidate.eligible
+      ).length;
+      setFeedback({
+        kind: "success",
+        message: `${payload.candidates.length} Weclapp-Artikel geladen. ${eligibleCount} davon sind bereits vollständig für einen eBay-Entwurf.`,
+      });
     } catch (error) {
       setFeedback({
         kind: "error",
@@ -1025,6 +1034,16 @@ export default function EbayModule({
           <p className="mt-1 text-sm text-slate-500">
             Die Auswahlwerte wurden direkt aus deinem eBay-Konto geladen.
           </p>
+          {setup.warnings?.length ? (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p className="font-bold">eBay-Sandbox nur teilweise verfügbar</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {setup.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {([
               ["merchantLocationKey", "Lagerort", setup.locations],
@@ -1302,9 +1321,14 @@ export default function EbayModule({
           </div>
 
           <div className="mt-4 divide-y rounded-xl border">
-            {!visible.length ? (
+            {!candidates.length ? (
               <p className="p-8 text-center text-sm text-slate-500">
                 Noch keine Artikel geladen.
+              </p>
+            ) : !visible.length ? (
+              <p className="p-8 text-center text-sm text-slate-500">
+                {candidates.length} Artikel wurden geladen, werden aber durch
+                „Nur vollständige“ ausgeblendet.
               </p>
             ) : (
               visible.map((candidate) => {

@@ -101,6 +101,7 @@ export type EbaySetup = {
   fulfillmentPolicies: EbayOption[];
   paymentPolicies: EbayOption[];
   returnPolicies: EbayOption[];
+  warnings?: string[];
 };
 
 export type EbayCategorySuggestion = {

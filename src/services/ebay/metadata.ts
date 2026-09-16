@@ -6,7 +6,7 @@ import type {
   EbayOption,
   EbaySetup,
 } from "@/types/ebay";
-import { ebayRequest } from "./client";
+import { ebayRequest, verifyEbayAccessToken } from "./client";
 import { getEbayConnection } from "./config";
 import { getEbaySettings } from "./store";
 
@@ -42,6 +42,28 @@ type AspectRecord = {
   aspectValues?: Array<{ localizedValue?: string }>;
 };
 
+function setupWarning(label: string, error: unknown) {
+  const message =
+    error instanceof Error ? error.message : "Unbekannter eBay-Fehler";
+  if (message.includes("User is not eligible for Business Policy")) {
+    return `${label}: Das eBay-Sandbox-Konto ist noch nicht für Geschäftsrichtlinien freigeschaltet.`;
+  }
+  if (message.includes('"errorId":25001') || message.includes("System error")) {
+    return `${label}: Die eBay-Sandbox meldet momentan einen internen Systemfehler.`;
+  }
+  return `${label}: ${message}`;
+}
+
+function setupResult<T>(
+  label: string,
+  result: PromiseSettledResult<T | null>,
+  warnings: string[]
+) {
+  if (result.status === "fulfilled") return result.value;
+  warnings.push(setupWarning(label, result.reason));
+  return null;
+}
+
 function policyOptions(
   records: PolicyRecord[] | undefined,
   idKey: "fulfillmentPolicyId" | "paymentPolicyId" | "returnPolicyId"
@@ -66,25 +88,35 @@ export async function loadEbaySetup(): Promise<EbaySetup> {
       fulfillmentPolicies: [],
       paymentPolicies: [],
       returnPolicies: [],
+      warnings: [],
     };
   }
 
+  await verifyEbayAccessToken();
   const market = encodeURIComponent(settings.marketplaceId);
-  const [locationResult, fulfillmentResult, paymentResult, returnResult] =
-    await Promise.all([
-      ebayRequest<{ locations?: LocationRecord[] }>(
-        "sell/inventory/v1/location?limit=200"
-      ),
-      ebayRequest<{ fulfillmentPolicies?: PolicyRecord[] }>(
-        `sell/account/v1/fulfillment_policy?marketplace_id=${market}`
-      ),
-      ebayRequest<{ paymentPolicies?: PolicyRecord[] }>(
-        `sell/account/v1/payment_policy?marketplace_id=${market}`
-      ),
-      ebayRequest<{ returnPolicies?: PolicyRecord[] }>(
-        `sell/account/v1/return_policy?marketplace_id=${market}`
-      ),
-    ]);
+  const results = await Promise.allSettled([
+    ebayRequest<{ locations?: LocationRecord[] }>(
+      "sell/inventory/v1/location?limit=200"
+    ),
+    ebayRequest<{ fulfillmentPolicies?: PolicyRecord[] }>(
+      `sell/account/v1/fulfillment_policy?marketplace_id=${market}`
+    ),
+    ebayRequest<{ paymentPolicies?: PolicyRecord[] }>(
+      `sell/account/v1/payment_policy?marketplace_id=${market}`
+    ),
+    ebayRequest<{ returnPolicies?: PolicyRecord[] }>(
+      `sell/account/v1/return_policy?marketplace_id=${market}`
+    ),
+  ]);
+  const warnings: string[] = [];
+  const locationResult = setupResult("Lagerorte", results[0], warnings);
+  const fulfillmentResult = setupResult(
+    "Versandrichtlinien",
+    results[1],
+    warnings
+  );
+  const paymentResult = setupResult("Zahlungsrichtlinien", results[2], warnings);
+  const returnResult = setupResult("Rückgaberichtlinien", results[3], warnings);
 
   const locations = (locationResult?.locations ?? [])
     .filter((item) => item.locationStatus !== "DISABLED")
@@ -104,9 +136,11 @@ export async function loadEbaySetup(): Promise<EbaySetup> {
     state: "connected",
     publishReady: baseConnection.publishReady,
     label: "eBay verbunden",
-    description: baseConnection.publishReady
-      ? "Verkäuferzugang, Lagerorte und Geschäftsrichtlinien wurden gelesen."
-      : `Verbindung erfolgreich. Noch offen: ${baseConnection.missingPublishingSetup.join(", ")}.`,
+    description: warnings.length
+      ? `OAuth-Anmeldung funktioniert. ${warnings.length} eBay-Bereich(e) sind in der Sandbox noch nicht verfügbar.`
+      : baseConnection.publishReady
+        ? "Verkäuferzugang, Lagerorte und Geschäftsrichtlinien wurden gelesen."
+        : `Verbindung erfolgreich. Noch offen: ${baseConnection.missingPublishingSetup.join(", ")}.`,
   };
 
   return {
@@ -125,6 +159,7 @@ export async function loadEbaySetup(): Promise<EbaySetup> {
       returnResult?.returnPolicies,
       "returnPolicyId"
     ),
+    warnings,
   };
 }
 

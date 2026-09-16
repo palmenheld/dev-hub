@@ -96,6 +96,10 @@ async function accessToken() {
   return tokenPromise.promise;
 }
 
+export async function verifyEbayAccessToken() {
+  await accessToken();
+}
+
 export async function ebayRequest<T>(
   endpoint: string,
   options: {
