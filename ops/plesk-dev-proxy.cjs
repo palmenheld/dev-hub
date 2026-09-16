@@ -5,7 +5,7 @@ const { readFileSync } = require("node:fs");
 const net = require("node:net");
 
 const upstreamHost = process.env.DEV_HUB_UPSTREAM_HOST || "127.0.0.1";
-const upstreamPort = Number(process.env.DEV_HUB_UPSTREAM_PORT || 3001);
+const upstreamPort = Number(process.env.DEV_HUB_UPSTREAM_PORT || 3002);
 const listenHost = process.env.DEV_HUB_LISTEN_HOST || "0.0.0.0";
 const listenPort = Number(process.env.PORT || 3000);
 const credentialsFile =

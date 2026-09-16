@@ -98,9 +98,12 @@ Der Aufruf läuft über folgende Stationen:
 
 1. Plesk nimmt die verschlüsselte HTTPS-Verbindung an.
 2. `ops/plesk-dev-proxy.cjs` prüft die Browser-Anmeldung.
-3. Der Proxy leitet die Anfrage intern an `127.0.0.1:3001` weiter.
-4. Dort läuft der Node.js-22-Entwicklungscontainer mit der Arbeitskopie aus
-   `/srv/palmenheld-dev-hub`.
+3. Der Proxy leitet die Anfrage intern an `127.0.0.1:3002` weiter.
+4. Dort läuft ein eigener Node.js-22-Vorschaucontainer mit einem stabilen
+   Next.js-Produktions-Build aus `/srv/palmenheld-dev-hub`.
+
+Der Entwicklungsserver auf Port `3001` bleibt davon getrennt und ist weiterhin
+nur über den SSH-Tunnel erreichbar.
 
 Die Zugangsdaten liegen ausschließlich auf dem Server in:
 
@@ -119,12 +122,13 @@ Um einen neuen Git-Stand in der Testversion bereitzustellen:
 ```bash
 cd /srv/palmenheld-dev-hub
 git pull --ff-only origin chore/remote-development-setup
-docker restart palmenheld-dev-hub
+mkdir -p .data
+docker compose -f ops/compose.preview.yaml up -d --force-recreate
 ```
 
-Der Docker-Port bleibt absichtlich an `127.0.0.1` gebunden. Er darf nicht direkt
-öffentlich freigegeben werden, weil die Anwendung Schreibfunktionen für
-Shopware und eBay enthält.
+Die Docker-Ports `3001` und `3002` bleiben absichtlich an `127.0.0.1`
+gebunden. Sie dürfen nicht direkt öffentlich freigegeben werden, weil die
+Anwendung Schreibfunktionen für Shopware und eBay enthält.
 
 ## Wichtige Trennung
 
