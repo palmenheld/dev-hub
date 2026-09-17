@@ -16,6 +16,82 @@ const EBAY_COPY_SCHEMA = {
     care: { type: "string" },
     winter: { type: "string" },
     searchTerms: { type: "array", items: { type: "string" } },
+    itemSpecifics: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        commonName: { type: "string" },
+        features: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [
+              "Biologisch",
+              "Blühend",
+              "Eingetopft",
+              "Einjährig",
+              "Eßbar",
+              "Hirschresistent",
+              "Hitzebeständig",
+              "Immergrün",
+              "Kleinwüchsig",
+              "Laubabwerfend",
+              "Luftreinigung",
+              "Mehrjährig",
+              "Schnellwüchsig",
+              "Trockenresistent",
+              "Variegated",
+              "Winterhart",
+              "Zweijährig",
+            ],
+          },
+        },
+        waterRequirement: {
+          type: "string",
+          enum: ["Hoch", "Mittel", "Niedrig"],
+        },
+        sunlight: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [
+              "Mittlere Sonne",
+              "Schwache Sonne",
+              "Volle Sonne",
+              "Vollschatten",
+            ],
+          },
+        },
+        productType: {
+          type: "string",
+          enum: [
+            "Bambus",
+            "Bäume",
+            "Bonsai",
+            "Farne",
+            "Gemüse",
+            "Kakteen & Sukkulenten",
+            "Karnivoren",
+            "Kletterpflanzen",
+            "Kräuter",
+            "Obst",
+            "Orchideen",
+            "Rosen",
+            "Sträucher & Hecken",
+            "Wasserpflanzen",
+            "Ziergräser",
+            "Zimmerpflanzen",
+          ],
+        },
+      },
+      required: [
+        "commonName",
+        "features",
+        "waterRequirement",
+        "sunlight",
+        "productType",
+      ],
+    },
     evidence: {
       type: "object",
       additionalProperties: false,
@@ -33,8 +109,52 @@ const EBAY_COPY_SCHEMA = {
       required: ["intro", "sellingPoints", "appearance", "location", "care", "winter"],
     },
   },
-  required: ["version", "title", "intro", "sellingPoints", "appearance", "location", "care", "winter", "searchTerms", "evidence"],
+  required: ["version", "title", "intro", "sellingPoints", "appearance", "location", "care", "winter", "searchTerms", "itemSpecifics", "evidence"],
 } as const;
+
+const EBAY_FEATURES = new Set([
+  "Biologisch",
+  "Blühend",
+  "Eingetopft",
+  "Einjährig",
+  "Eßbar",
+  "Hirschresistent",
+  "Hitzebeständig",
+  "Immergrün",
+  "Kleinwüchsig",
+  "Laubabwerfend",
+  "Luftreinigung",
+  "Mehrjährig",
+  "Schnellwüchsig",
+  "Trockenresistent",
+  "Variegated",
+  "Winterhart",
+  "Zweijährig",
+]);
+const EBAY_SUNLIGHT = new Set([
+  "Mittlere Sonne",
+  "Schwache Sonne",
+  "Volle Sonne",
+  "Vollschatten",
+]);
+const EBAY_PRODUCT_TYPES = new Set([
+  "Bambus",
+  "Bäume",
+  "Bonsai",
+  "Farne",
+  "Gemüse",
+  "Kakteen & Sukkulenten",
+  "Karnivoren",
+  "Kletterpflanzen",
+  "Kräuter",
+  "Obst",
+  "Orchideen",
+  "Rosen",
+  "Sträucher & Hecken",
+  "Wasserpflanzen",
+  "Ziergräser",
+  "Zimmerpflanzen",
+]);
 
 function normalizedText(value: string) {
   return value.replace(/\s+/g, " ").trim();
@@ -153,6 +273,15 @@ function validateGeneratedCopy(
     throw new Error("Der eBay-Text enthält doppelte Verkaufspunkte.");
   }
   copy.searchTerms = [...new Set(copy.searchTerms.map(normalizedText))];
+  copy.itemSpecifics.commonName = normalizedText(
+    copy.itemSpecifics.commonName
+  );
+  copy.itemSpecifics.features = [
+    ...new Set(copy.itemSpecifics.features.map(normalizedText)),
+  ];
+  copy.itemSpecifics.sunlight = [
+    ...new Set(copy.itemSpecifics.sunlight.map(normalizedText)),
+  ] as EbayGeneratedCopy["itemSpecifics"]["sunlight"];
 
   assertLength(copy.title, "Titel", 20, 80);
   assertLength(copy.intro, "Einleitung", 80, 360);
@@ -166,6 +295,24 @@ function validateGeneratedCopy(
   for (const point of copy.sellingPoints) assertLength(point, "Verkaufspunkt", 15, 180);
   if (copy.searchTerms.length < 4 || copy.searchTerms.length > 12) {
     throw new Error("Der eBay-Text benötigt vier bis zwölf Suchbegriffe.");
+  }
+  assertLength(copy.itemSpecifics.commonName, "Allgemeiner Name", 2, 100);
+  if (
+    copy.itemSpecifics.features.length < 1 ||
+    copy.itemSpecifics.features.length > 6 ||
+    copy.itemSpecifics.features.some((value) => !EBAY_FEATURES.has(value))
+  ) {
+    throw new Error("Die KI hat keine gültigen eBay-Besonderheiten gewählt.");
+  }
+  if (
+    copy.itemSpecifics.sunlight.length < 1 ||
+    copy.itemSpecifics.sunlight.length > 3 ||
+    copy.itemSpecifics.sunlight.some((value) => !EBAY_SUNLIGHT.has(value))
+  ) {
+    throw new Error("Die KI hat keinen gültigen eBay-Sonnenlichtwert gewählt.");
+  }
+  if (!EBAY_PRODUCT_TYPES.has(copy.itemSpecifics.productType)) {
+    throw new Error("Die KI hat keine gültige eBay-Produktart gewählt.");
   }
   if (copy.evidence.sellingPoints.length !== copy.sellingPoints.length) {
     throw new Error("Die Quellenzuordnung der eBay-Verkaufspunkte ist unvollständig.");
@@ -238,6 +385,11 @@ REGELN:
 - winter: Winterhärte, konservative Minimaltemperatur ${research.minTemperatureC} °C, Freiland/Kübel und Richtwertcharakter nennen.
 - Insgesamt ungefähr 250–450 Wörter. Kaufentscheidende Artikeldaten innerhalb der ersten etwa 800 Zeichen.
 - searchTerms: vier bis zwölf passende Begriffe nur zur internen Qualitätsprüfung.
+- itemSpecifics.commonName: den bestätigten gebräuchlichen deutschen Pflanzennamen angeben.
+- itemSpecifics.features: eine bis sechs belegte Besonderheiten ausschließlich aus dieser eBay-Liste wählen: Biologisch, Blühend, Eingetopft, Einjährig, Eßbar, Hirschresistent, Hitzebeständig, Immergrün, Kleinwüchsig, Laubabwerfend, Luftreinigung, Mehrjährig, Schnellwüchsig, Trockenresistent, Variegated, Winterhart, Zweijährig. Nur tatsächlich durch die Forschung gestützte Werte wählen; bei einer blühenden Strelitzie insbesondere Blühend.
+- itemSpecifics.waterRequirement: den belegten Wasserbedarf exakt als Hoch, Mittel oder Niedrig einordnen.
+- itemSpecifics.sunlight: ein bis drei passende Werte ausschließlich aus Mittlere Sonne, Schwache Sonne, Volle Sonne, Vollschatten wählen.
+- itemSpecifics.productType: exakt eine passende Produktart aus Bambus, Bäume, Bonsai, Farne, Gemüse, Kakteen & Sukkulenten, Karnivoren, Kletterpflanzen, Kräuter, Obst, Orchideen, Rosen, Sträucher & Hecken, Wasserpflanzen, Ziergräser, Zimmerpflanzen wählen.
 - evidence: Ordne Einleitung, jeden Verkaufspunkt und jeden Textabschnitt den verwendeten Quellen-IDs zu. Jede Zuordnung braucht mindestens zwei unabhängige Organisationen; winter mindestens drei. Die IDs werden nicht veröffentlicht.
 - Keine neuen Fakten. Konkrete Liefermerkmale nur aus Weclapp.
 
@@ -263,4 +415,22 @@ ${JSON.stringify(sourceSummary)}`,
     candidate,
     research
   );
+}
+
+export function generatedEbayAspects(
+  copy: EbayGeneratedCopy,
+  research: ProductResearch
+) {
+  const genus = normalizedText(research.confirmedLatinName).split(/\s+/)[0];
+  return {
+    Marke: ["Palmenheld"],
+    "Allgemeiner Name": [copy.itemSpecifics.commonName],
+    "Anzahl pro Packung": ["1"],
+    Besonderheiten: copy.itemSpecifics.features,
+    Gattung: genus ? [genus] : [],
+    "Innen-/Außenbereich": ["Innen- & Außenbereich"],
+    Wasserbedarf: [copy.itemSpecifics.waterRequirement],
+    Sonnenlicht: copy.itemSpecifics.sunlight,
+    Produktart: [copy.itemSpecifics.productType],
+  };
 }

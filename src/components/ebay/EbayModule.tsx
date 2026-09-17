@@ -946,6 +946,30 @@ export default function EbayModule({
     setBusy(action);
     setFeedback(null);
     try {
+      if (action === "regenerate") {
+        const response = await fetch("/api/channels/ebay/draft-jobs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draftId: active.id }),
+        });
+        const payload = (await response.json()) as {
+          job?: EbayDraftJob;
+          error?: string;
+        };
+        if (!response.ok || !payload.job) {
+          throw new Error(
+            payload.error || "KI-Neugenerierung konnte nicht gestartet werden."
+          );
+        }
+        const draft = await waitForDraftJob(payload.job.id);
+        remember(draft);
+        setFeedback({
+          kind: "success",
+          message:
+            "Text und eBay-Merkmale wurden neu erzeugt und müssen erneut geprüft werden.",
+        });
+        return;
+      }
       const response = await fetch(
         `/api/channels/ebay/drafts/${active.id}/${action}`,
         emptyJsonPost(
@@ -966,9 +990,7 @@ export default function EbayModule({
       setFeedback({
         kind: "success",
         message:
-          action === "regenerate"
-            ? "Der optimierte eBay-Text wurde neu erzeugt und muss erneut geprüft werden."
-            : action === "approve"
+          action === "approve"
               ? "Entwurf ausdrücklich freigegeben."
               : action === "publish" || action === "resume"
                 ? "Die Anzeige wurde bei eBay veröffentlicht."

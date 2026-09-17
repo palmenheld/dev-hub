@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { EbayDraftJob } from "@/types/ebay";
-import { createEbayDraft } from "./drafts";
+import { createEbayDraft, regenerateEbayCopy } from "./drafts";
 import { getEbayDataDirectory, getEbayDraft } from "./store";
 
 function jobPath(id: string) {
@@ -49,7 +49,8 @@ export async function createEbayDraftJob(
 export async function runEbayDraftJob(
   jobId: string,
   articleId: string,
-  templateId?: string
+  templateId?: string,
+  draftId?: string
 ) {
   const queued = await readJob(jobId);
   if (!queued) return;
@@ -59,7 +60,9 @@ export async function runEbayDraftJob(
     updatedAt: new Date().toISOString(),
   });
   try {
-    const draft = await createEbayDraft(articleId, false, templateId);
+    const draft = draftId
+      ? await regenerateEbayCopy(draftId)
+      : await createEbayDraft(articleId, false, templateId);
     await writeJob({
       ...queued,
       status: "completed",

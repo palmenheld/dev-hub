@@ -5,6 +5,7 @@ import {
   runEbayDraftJob,
 } from "@/services/ebay/draftJobs";
 import { getEbayCandidate } from "@/services/ebay/candidates";
+import { getEbayDraft } from "@/services/ebay/store";
 import { assertSameOrigin } from "@/services/requestSecurity";
 
 export async function GET(request: Request) {
@@ -36,16 +37,28 @@ export async function POST(request: Request) {
     assertSameOrigin(request);
     const body = (await request.json()) as {
       articleId?: unknown;
+      draftId?: unknown;
       templateId?: unknown;
     };
-    if (
-      typeof body.articleId !== "string" ||
-      !/^\d+$/.test(body.articleId.trim())
-    ) {
-      throw new Error("Eine gültige Weclapp-Artikel-ID ist erforderlich.");
+    const draftId =
+      typeof body.draftId === "string" &&
+      /^[0-9a-f-]{36}$/i.test(body.draftId.trim())
+        ? body.draftId.trim()
+        : undefined;
+    const existingDraft = draftId ? await getEbayDraft(draftId) : null;
+    const articleId = existingDraft
+      ? existingDraft.source.articleId
+      : typeof body.articleId === "string" && /^\d+$/.test(body.articleId.trim())
+        ? body.articleId.trim()
+        : "";
+    if (!articleId) {
+      throw new Error(
+        draftId
+          ? "Der eBay-Entwurf wurde nicht gefunden."
+          : "Eine gültige Weclapp-Artikel-ID ist erforderlich."
+      );
     }
-    const articleId = body.articleId.trim();
-    const candidate = await getEbayCandidate(articleId);
+    const candidate = existingDraft?.source ?? (await getEbayCandidate(articleId));
     const job = await createEbayDraftJob(
       articleId,
       candidate.articleNumber || articleId
@@ -54,7 +67,7 @@ export async function POST(request: Request) {
       typeof body.templateId === "string" && body.templateId
         ? body.templateId
         : undefined;
-    void runEbayDraftJob(job.id, articleId, templateId);
+    void runEbayDraftJob(job.id, articleId, templateId, draftId);
     return NextResponse.json({ job }, { status: 202 });
   } catch (error) {
     return NextResponse.json(

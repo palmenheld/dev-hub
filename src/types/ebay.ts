@@ -159,6 +159,31 @@ export type EbayGeneratedCopy = {
   care: string;
   winter: string;
   searchTerms: string[];
+  itemSpecifics: {
+    commonName: string;
+    features: string[];
+    waterRequirement: "Hoch" | "Mittel" | "Niedrig";
+    sunlight: Array<
+      "Mittlere Sonne" | "Schwache Sonne" | "Volle Sonne" | "Vollschatten"
+    >;
+    productType:
+      | "Bambus"
+      | "Bäume"
+      | "Bonsai"
+      | "Farne"
+      | "Gemüse"
+      | "Kakteen & Sukkulenten"
+      | "Karnivoren"
+      | "Kletterpflanzen"
+      | "Kräuter"
+      | "Obst"
+      | "Orchideen"
+      | "Rosen"
+      | "Sträucher & Hecken"
+      | "Wasserpflanzen"
+      | "Ziergräser"
+      | "Zimmerpflanzen";
+  };
   evidence: {
     intro: string[];
     sellingPoints: string[][];

@@ -12,7 +12,7 @@ import type {
 import { validateDraft as validateResearch } from "@/services/shopware/drafts";
 import { researchProduct } from "@/services/shopware/research";
 import { withEbayMutationLock } from "./lock";
-import { generateEbayCopy } from "./copy";
+import { generateEbayCopy, generatedEbayAspects } from "./copy";
 import { getEbayCandidate } from "./candidates";
 import {
   getEbayCategoryAspects,
@@ -455,6 +455,7 @@ async function createUnlocked(
   }
   const { research, sources } = await researchProduct(candidate);
   const generatedCopy = await generateEbayCopy(candidate, research, sources);
+  const generatedAspects = generatedEbayAspects(generatedCopy, research);
   const researchValidation = validateResearch(research, sources);
   const now = new Date().toISOString();
   const settings = await getEbaySettings();
@@ -492,7 +493,10 @@ async function createUnlocked(
     categoryName: templateValues?.categoryName || "",
     condition: options.condition,
     options,
-    aspects: templateValues?.aspects || {},
+    aspects: {
+      ...generatedAspects,
+      ...(templateValues?.aspects || {}),
+    },
     price: templateValues?.price || candidate.price,
     quantity:
       templateValues?.quantity ??
@@ -657,6 +661,7 @@ async function regenerateCopyUnlocked(id: string) {
   }
   const { research, sources } = await researchProduct(candidate);
   const generatedCopy = await generateEbayCopy(candidate, research, sources);
+  const generatedAspects = generatedEbayAspects(generatedCopy, research);
   const researchValidation = validateResearch(research, sources);
   const settings = await getEbaySettings();
   const [definitions, conditions] = draft.categoryId
@@ -676,6 +681,10 @@ async function regenerateCopyUnlocked(id: string) {
     title: generatedCopy.title,
     descriptionHtml: renderEbayDescription(generatedCopy, candidate, research),
     generatedCopy,
+    aspects: {
+      ...generatedAspects,
+      ...draft.aspects,
+    },
     research,
     sources,
     researchValidation,
