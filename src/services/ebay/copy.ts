@@ -160,6 +160,40 @@ function normalizedText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function resolvedCommonName(
+  copy: EbayGeneratedCopy,
+  research: ProductResearch
+) {
+  const latin = normalizedText(research.confirmedLatinName).toLocaleLowerCase(
+    "de-DE"
+  );
+  const latinParts = latin.split(/\s+/).slice(0, 2);
+  const genus = latinParts[0] || "";
+  const isBotanicalName = (value: string) => {
+    const normalized = normalizedText(value).toLocaleLowerCase("de-DE");
+    return (
+      normalized === latin ||
+      (latinParts.length > 1 &&
+        latinParts.every((part) => normalized.includes(part))) ||
+      Boolean(genus && normalized.startsWith(`${genus} `))
+    );
+  };
+  const isProductPhrase = (value: string) =>
+    /\b(?:zimmerpflanze|kübelpflanze|topf|c\d+|\d+\s*(?:cm|m))\b/i.test(
+      value
+    );
+  return (
+    [copy.itemSpecifics.commonName, ...copy.searchTerms]
+      .map(normalizedText)
+      .find(
+        (value) =>
+          value.length >= 2 &&
+          !isBotanicalName(value) &&
+          !isProductPhrase(value)
+      ) || normalizedText(copy.itemSpecifics.commonName)
+  );
+}
+
 function assertLength(value: string, label: string, minimum: number, maximum: number) {
   const length = normalizedText(value).length;
   if (length < minimum || length > maximum) {
@@ -282,6 +316,7 @@ function validateGeneratedCopy(
   copy.itemSpecifics.sunlight = [
     ...new Set(copy.itemSpecifics.sunlight.map(normalizedText)),
   ] as EbayGeneratedCopy["itemSpecifics"]["sunlight"];
+  copy.itemSpecifics.commonName = resolvedCommonName(copy, research);
 
   assertLength(copy.title, "Titel", 20, 80);
   assertLength(copy.intro, "Einleitung", 80, 360);
@@ -385,7 +420,7 @@ REGELN:
 - winter: Winterhärte, konservative Minimaltemperatur ${research.minTemperatureC} °C, Freiland/Kübel und Richtwertcharakter nennen.
 - Insgesamt ungefähr 250–450 Wörter. Kaufentscheidende Artikeldaten innerhalb der ersten etwa 800 Zeichen.
 - searchTerms: vier bis zwölf passende Begriffe nur zur internen Qualitätsprüfung.
-- itemSpecifics.commonName: den bestätigten gebräuchlichen deutschen Pflanzennamen angeben.
+- itemSpecifics.commonName: den bestätigten gebräuchlichen deutschen Trivialnamen angeben. Niemals den botanischen/lateinischen Namen wiederholen. Beispiel: Für Strelitzia reginae ist der allgemeine Name Paradiesvogelblume.
 - itemSpecifics.features: eine bis sechs belegte Besonderheiten ausschließlich aus dieser eBay-Liste wählen: Biologisch, Blühend, Eingetopft, Einjährig, Eßbar, Hirschresistent, Hitzebeständig, Immergrün, Kleinwüchsig, Laubabwerfend, Luftreinigung, Mehrjährig, Schnellwüchsig, Trockenresistent, Variegated, Winterhart, Zweijährig. Nur tatsächlich durch die Forschung gestützte Werte wählen; bei einer blühenden Strelitzie insbesondere Blühend.
 - itemSpecifics.waterRequirement: den belegten Wasserbedarf exakt als Hoch, Mittel oder Niedrig einordnen.
 - itemSpecifics.sunlight: ein bis drei passende Werte ausschließlich aus Mittlere Sonne, Schwache Sonne, Volle Sonne, Vollschatten wählen.

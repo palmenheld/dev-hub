@@ -322,6 +322,7 @@ Prüfe zuerst die botanische Identität. Recherchiere danach Erscheinungsbild/Wu
         content: `Erzeuge aus dem Dossier strukturierte deutsche Produktinhalte.
 
 Anforderungen:
+- confirmedGermanName muss der belegte gebräuchliche deutsche Trivialname sein und darf nicht einfach den botanischen/lateinischen Namen wiederholen.
 - Meta-Titel idealerweise 45–60 Zeichen.
 - Meta-Beschreibung idealerweise 140–160 Zeichen.
 - 5–8 klare Textblöcke mit insgesamt ungefähr 350–650 Wörtern.
