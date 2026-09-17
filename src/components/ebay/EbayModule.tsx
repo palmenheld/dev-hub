@@ -107,6 +107,7 @@ export default function EbayModule({
   const [drafts, setDrafts] = useState<EbayListingDraft[]>([]);
   const [active, setActive] = useState<EbayListingDraft | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const [onlyActive, setOnlyActive] = useState(true);
   const [onlyReady, setOnlyReady] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -278,10 +279,12 @@ export default function EbayModule({
 
   const visible = useMemo(
     () =>
-      onlyReady
-        ? candidates.filter((candidate) => candidate.eligible)
-        : candidates,
-    [candidates, onlyReady]
+      candidates.filter(
+        (candidate) =>
+          (!onlyActive || candidate.active !== false) &&
+          (!onlyReady || candidate.eligible)
+      ),
+    [candidates, onlyActive, onlyReady]
   );
   const formDirty = Boolean(
     active && form && editableState(active) !== editableState(form)
@@ -491,9 +494,12 @@ export default function EbayModule({
       const eligibleCount = payload.candidates.filter(
         (candidate) => candidate.eligible
       ).length;
+      const activeCount = payload.candidates.filter(
+        (candidate) => candidate.active !== false
+      ).length;
       setFeedback({
         kind: "success",
-        message: `${payload.candidates.length} Weclapp-Artikel geladen. ${eligibleCount} davon sind bereits vollständig für einen eBay-Entwurf.`,
+        message: `${payload.candidates.length} Weclapp-Artikel geladen: ${activeCount} aktiv, ${eligibleCount} vollständig für einen eBay-Entwurf.`,
       });
     } catch (error) {
       setFeedback({
@@ -1577,6 +1583,28 @@ export default function EbayModule({
               <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm">
                 <input
                   type="checkbox"
+                  checked={onlyActive}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setOnlyActive(checked);
+                    if (checked) {
+                      setSelected((current) =>
+                        current.filter((id) =>
+                          candidates.some(
+                            (candidate) =>
+                              candidate.articleId === id &&
+                              candidate.active !== false
+                          )
+                        )
+                      );
+                    }
+                  }}
+                />
+                Nur aktive
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm">
+                <input
+                  type="checkbox"
                   checked={onlyReady}
                   onChange={(event) => setOnlyReady(event.target.checked)}
                 />
@@ -1631,7 +1659,7 @@ export default function EbayModule({
             ) : !visible.length ? (
               <p className="p-8 text-center text-sm text-slate-500">
                 {candidates.length} Artikel wurden geladen, werden aber durch
-                „Nur vollständige“ ausgeblendet.
+                die aktiven Filter ausgeblendet.
               </p>
             ) : (
               visible.map((candidate) => {
@@ -1664,9 +1692,20 @@ export default function EbayModule({
                       <p className="truncate text-sm italic text-slate-500">
                         {candidate.latinName || "Lateinischer Name fehlt"}
                       </p>
-                      <p className="text-xs text-slate-400">
-                        {candidate.articleNumber}
-                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="text-slate-400">
+                          {candidate.articleNumber}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 font-semibold ${
+                            candidate.active !== false
+                              ? "bg-green-100 text-green-800"
+                              : "bg-slate-200 text-slate-600"
+                          }`}
+                        >
+                          {candidate.active !== false ? "Aktiv" : "Inaktiv"}
+                        </span>
+                      </div>
                     </div>
                     <div className="text-sm">
                       <strong>{candidate.heightLabel || "Höhe fehlt"}</strong>

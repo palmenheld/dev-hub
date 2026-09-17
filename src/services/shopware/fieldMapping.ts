@@ -426,6 +426,7 @@ export function mapCandidate(
     articleNumber,
     germanName,
     latinName,
+    active: article.active !== false,
     heightCm,
     heightMinCm: height?.minCm,
     heightMaxCm: height?.maxCm,
