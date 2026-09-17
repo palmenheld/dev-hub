@@ -1,9 +1,6 @@
 import { getArticle, getArticles, getShopwarePriceMap } from "@/services/weclapp";
 import type { WeclappArticle } from "@/services/weclapp/types/article";
-import {
-  getFieldMap,
-  getPublishingSettings,
-} from "@/services/shopware/dataStore";
+import { getFieldMap } from "@/services/shopware/dataStore";
 import { mapCandidate } from "@/services/shopware/fieldMapping";
 
 async function detailedArticles(
@@ -41,16 +38,14 @@ export async function getEbayCandidates(
   onlyActive = false
 ) {
   const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
-  const [articles, fieldMap, publishingSettings] = await Promise.all([
+  const [articles, fieldMap] = await Promise.all([
     detailedArticles(safeLimit, Math.max(1, Math.floor(page)), onlyActive),
     getFieldMap(),
-    getPublishingSettings(),
   ]);
   const prices = await getShopwarePriceMap(
     "GROSS1",
     process.env.WECLAPP_EBAY_CURRENCY_ID?.trim() ||
-      process.env.WECLAPP_SHOPWARE_CURRENCY_ID?.trim() ||
-      publishingSettings.currencyId
+      process.env.WECLAPP_SHOPWARE_CURRENCY_ID?.trim()
   );
   return articles.map((article) => {
     const resolvedPrice = prices.get(article.id);
@@ -66,16 +61,14 @@ export async function getEbayCandidates(
 }
 
 export async function getEbayCandidate(articleId: string) {
-  const [article, fieldMap, publishingSettings] = await Promise.all([
+  const [article, fieldMap] = await Promise.all([
     getArticle(articleId),
     getFieldMap(),
-    getPublishingSettings(),
   ]);
   const prices = await getShopwarePriceMap(
     "GROSS1",
     process.env.WECLAPP_EBAY_CURRENCY_ID?.trim() ||
-      process.env.WECLAPP_SHOPWARE_CURRENCY_ID?.trim() ||
-      publishingSettings.currencyId
+      process.env.WECLAPP_SHOPWARE_CURRENCY_ID?.trim()
   );
   const resolvedPrice = prices.get(article.id);
   return mapCandidate(

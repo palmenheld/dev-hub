@@ -1,4 +1,5 @@
 import type { EbayListingDraft } from "@/types/ebay";
+import { getArticleImage } from "@/services/weclapp";
 import { withEbayMutationLock } from "./lock";
 import { getEbayCandidate } from "./candidates";
 import { ebayFormDataRequest, ebayRequest } from "./client";
@@ -138,6 +139,36 @@ function trustedImageHosts() {
 }
 
 async function downloadImage(urlValue: string) {
+  const internalImage = urlValue.match(
+    /^\/api\/weclapp\/articles\/(\d+)\/images\/(\d+)$/
+  );
+  if (internalImage) {
+    const image = await getArticleImage(internalImage[1], internalImage[2]);
+    const contentType = image.contentType.toLowerCase();
+    if (
+      !["image/jpeg", "image/png", "image/gif", "image/webp"].includes(
+        contentType
+      )
+    ) {
+      throw new Error(
+        `Nicht unterstütztes Bildformat: ${contentType || "unbekannt"}.`
+      );
+    }
+    if (image.body.byteLength > 12 * 1024 * 1024) {
+      throw new Error("Ein Bild ist größer als 12 MB.");
+    }
+    const extensions: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/gif": "gif",
+      "image/webp": "webp",
+    };
+    return {
+      body: image.body,
+      contentType,
+      extension: extensions[contentType],
+    };
+  }
   const url = new URL(urlValue);
   if (url.protocol !== "https:") {
     throw new Error("Bilder dürfen nur über HTTPS importiert werden.");

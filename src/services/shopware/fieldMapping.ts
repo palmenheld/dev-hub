@@ -351,6 +351,26 @@ function collectUrls(value: unknown, output: Set<string>, depth = 0) {
   }
 }
 
+function collectNativeArticleImages(
+  article: WeclappArticle,
+  output: Set<string>
+) {
+  if (!Array.isArray(article.articleImages)) return;
+  const images = article.articleImages
+    .filter(isRecord)
+    .sort(
+      (left, right) =>
+        Number(Boolean(right.mainImage)) - Number(Boolean(left.mainImage))
+    );
+  for (const image of images) {
+    const imageId = textValue(image.id);
+    if (!/^\d+$/.test(imageId)) continue;
+    output.add(
+      `/api/weclapp/articles/${encodeURIComponent(article.id)}/images/${encodeURIComponent(imageId)}`
+    );
+  }
+}
+
 export function getShippingClass(heightCm: number): ShippingClass {
   if (heightCm <= 120) {
     return {
@@ -408,6 +428,7 @@ export function mapCandidate(
   const potSize = parsedPot?.label || explicitPotSize || undefined;
   const stock = numericValue(readSelector(article, fieldMap.stock));
   const imageSet = new Set<string>();
+  collectNativeArticleImages(article, imageSet);
   collectUrls(readSelector(article, fieldMap.images), imageSet);
   const imageUrls = [...imageSet].slice(0, 12);
   const articleNumber = textValue(article.articleNumber);

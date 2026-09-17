@@ -39,6 +39,60 @@ export class WeclappHttpError extends Error {
   }
 }
 
+export type WeclappBinaryResponse = {
+  body: ArrayBuffer;
+  contentType: string;
+  fileName?: string;
+};
+
+function fileNameFromDisposition(value: string | null) {
+  if (!value) return undefined;
+  const encoded = value.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {}
+  }
+  return value.match(/filename="?([^";]+)"?/i)?.[1];
+}
+
+export async function weclappBinaryRequest(
+  endpoint: string,
+  query?: Record<string, string | number | boolean | undefined>
+): Promise<WeclappBinaryResponse> {
+  const config = getWeclappConfiguration();
+  const url = new URL(
+    `${config.tenantBaseUrl}/webapp/api/v2/${endpoint.replace(/^\//, "")}`
+  );
+  Object.entries(query ?? {}).forEach(([key, value]) => {
+    if (value !== undefined) url.searchParams.set(key, String(value));
+  });
+  const response = await fetch(url, {
+    headers: {
+      AuthenticationToken: config.apiToken,
+      Accept: "image/*",
+    },
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) {
+    const responseBody = await response.text();
+    throw new WeclappHttpError(
+      response.status,
+      `Weclapp API ${response.status} ${response.statusText}: ${responseBody.slice(0, 1000)}`
+    );
+  }
+  return {
+    body: await response.arrayBuffer(),
+    contentType:
+      response.headers.get("content-type")?.split(";")[0].trim() ||
+      "application/octet-stream",
+    fileName: fileNameFromDisposition(
+      response.headers.get("content-disposition")
+    ),
+  };
+}
+
 export async function weclappRequest<T>(
   endpoint: string,
   options: WeclappRequestOptions = {}
