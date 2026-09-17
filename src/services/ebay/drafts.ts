@@ -645,6 +645,36 @@ async function approveUnlocked(id: string) {
   return approved;
 }
 
+async function revalidateUnlocked(id: string) {
+  const draft = await getEbayDraft(id);
+  if (!draft) throw new Error("Der eBay-Entwurf wurde nicht gefunden.");
+  if (draft.status !== "ready" && draft.status !== "blocked") {
+    throw new Error("Dieser eBay-Entwurf kann jetzt nicht neu geprüft werden.");
+  }
+  const settings = await getEbaySettings();
+  const [definitions, conditions] = draft.categoryId
+    ? await Promise.all([
+        getEbayCategoryAspects(draft.categoryId, settings.marketplaceId),
+        getEbayCategoryConditions(draft.categoryId, settings.marketplaceId),
+      ])
+    : [[], []];
+  const researchValidation = validateResearch(draft.research, draft.sources);
+  const next: EbayListingDraft = {
+    ...draft,
+    researchValidation,
+    approvedAt: undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  next.validation = validateEbayDraft(
+    next,
+    definitions,
+    conditions.map((condition) => condition.value)
+  );
+  next.status = next.validation.valid ? "ready" : "blocked";
+  await saveEbayDraft(next);
+  return next;
+}
+
 async function regenerateCopyUnlocked(id: string) {
   const draft = await getEbayDraft(id);
   if (!draft) throw new Error("Der eBay-Entwurf wurde nicht gefunden.");
@@ -724,6 +754,12 @@ export function updateEbayDraft(id: string, input: EditableInput) {
 
 export function approveEbayDraft(id: string) {
   return withEbayMutationLock(`ebay-draft:${id}`, () => approveUnlocked(id));
+}
+
+export function revalidateEbayDraft(id: string) {
+  return withEbayMutationLock(`ebay-draft:${id}`, () =>
+    revalidateUnlocked(id)
+  );
 }
 
 export function regenerateEbayCopy(id: string) {

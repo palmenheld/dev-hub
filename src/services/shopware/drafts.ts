@@ -80,7 +80,7 @@ export function validateDraft(
   const warnings: string[] = [];
 
   if (!research.researchComplete) {
-    errors.push(
+    warnings.push(
       `Die Recherche meldet offene Punkte: ${research.gaps.join("; ") || "nicht näher bezeichnet"}.`
     );
   }
