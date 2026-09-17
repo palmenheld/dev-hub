@@ -152,7 +152,10 @@ function sourceDomain(value: string) {
   return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
 }
 
-function collectSources(response: OpenAIResponse): ResearchSource[] {
+function collectSources(
+  response: OpenAIResponse,
+  dossierText = ""
+): ResearchSource[] {
   const found = new Map<string, { title: string; publisher: string }>();
 
   function add(urlValue: unknown, titleValue: unknown) {
@@ -195,6 +198,10 @@ function collectSources(response: OpenAIResponse): ResearchSource[] {
     }
   }
 
+  for (const match of dossierText.matchAll(/https?:\/\/[^\s<>"']+/gi)) {
+    const url = match[0].replace(/[\])},.;:!?]+$/g, "");
+    add(url, "");
+  }
   visit(response.output, "output");
 
   return [...found.entries()].slice(0, 60).map(([url, details], index) => ({
@@ -300,7 +307,7 @@ Prüfe zuerst die botanische Identität. Recherchiere danach Erscheinungsbild/Wu
   });
 
   const dossier = extractOutputText(dossierResponse);
-  const sources = collectSources(dossierResponse);
+  const sources = collectSources(dossierResponse, dossier);
   if (sources.length < 3) {
     throw new Error(
       "Die Recherche lieferte zu wenige nachvollziehbare Quellen. Der Entwurf wurde nicht erstellt."
