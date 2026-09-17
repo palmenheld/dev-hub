@@ -6,7 +6,14 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const limit = Math.max(1, Math.min(100, Number(url.searchParams.get("limit")) || 40));
     const page = Math.max(1, Number(url.searchParams.get("page")) || 1);
-    const candidates = await getEbayCandidates(Math.floor(limit), Math.floor(page));
+    const onlyActive = ["1", "true"].includes(
+      url.searchParams.get("onlyActive") || ""
+    );
+    const candidates = await getEbayCandidates(
+      Math.floor(limit),
+      Math.floor(page),
+      onlyActive
+    );
     return NextResponse.json({
       candidates,
       page,

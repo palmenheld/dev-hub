@@ -6,8 +6,16 @@ import {
 } from "@/services/shopware/dataStore";
 import { mapCandidate } from "@/services/shopware/fieldMapping";
 
-async function detailedArticles(limit: number, page: number) {
-  const response = await getArticles({ page, pageSize: limit });
+async function detailedArticles(
+  limit: number,
+  page: number,
+  onlyActive: boolean
+) {
+  const response = await getArticles({
+    page,
+    pageSize: limit,
+    active: onlyActive || undefined,
+  });
   const summaries = response.result ?? [];
   const details: WeclappArticle[] = [];
   for (let index = 0; index < summaries.length; index += 5) {
@@ -27,10 +35,14 @@ async function detailedArticles(limit: number, page: number) {
   return details;
 }
 
-export async function getEbayCandidates(limit = 40, page = 1) {
+export async function getEbayCandidates(
+  limit = 40,
+  page = 1,
+  onlyActive = false
+) {
   const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
   const [articles, fieldMap, publishingSettings] = await Promise.all([
-    detailedArticles(safeLimit, Math.max(1, Math.floor(page))),
+    detailedArticles(safeLimit, Math.max(1, Math.floor(page)), onlyActive),
     getFieldMap(),
     getPublishingSettings(),
   ]);

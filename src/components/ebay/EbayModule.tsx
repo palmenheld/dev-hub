@@ -464,12 +464,12 @@ export default function EbayModule({
     }
   }
 
-  async function loadCandidates(targetPage = page) {
+  async function loadCandidates(targetPage = page, activeOnly = onlyActive) {
     setBusy("candidates");
     setFeedback(null);
     try {
       const [candidateResponse, draftResponse] = await Promise.all([
-        fetch(`/api/channels/ebay/candidates?limit=100&page=${targetPage}`, {
+        fetch(`/api/channels/ebay/candidates?limit=100&page=${targetPage}&onlyActive=${activeOnly ? "1" : "0"}`, {
           cache: "no-store",
         }),
         fetch("/api/channels/ebay/drafts", { cache: "no-store" }),
@@ -1584,20 +1584,12 @@ export default function EbayModule({
                 <input
                   type="checkbox"
                   checked={onlyActive}
+                  disabled={Boolean(busy)}
                   onChange={(event) => {
                     const checked = event.target.checked;
                     setOnlyActive(checked);
-                    if (checked) {
-                      setSelected((current) =>
-                        current.filter((id) =>
-                          candidates.some(
-                            (candidate) =>
-                              candidate.articleId === id &&
-                              candidate.active !== false
-                          )
-                        )
-                      );
-                    }
+                    setSelected([]);
+                    void loadCandidates(1, checked);
                   }}
                 />
                 Nur aktive
