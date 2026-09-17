@@ -7,6 +7,7 @@ import type {
   EbayCategorySuggestion,
   EbayConditionOption,
   EbayConnection,
+  EbayDraftJob,
   EbayListingTemplate,
   EbayListingDraft,
   EbayListingOptions,
@@ -20,6 +21,8 @@ import type { ProductCandidate } from "@/types/shopwarePublishing";
 
 type Feedback = { kind: "success" | "error"; message: string };
 const MAX_BATCH = 10;
+const JOB_POLL_INTERVAL_MS = 2_000;
+const JOB_MAX_WAIT_MS = 20 * 60 * 1_000;
 const DEFAULT_SANDBOX_SETUP: EbaySandboxBootstrapInput = {
   merchantLocationKey: "palmenheld-lager",
   locationName: "Palmenheld Lager",
@@ -89,6 +92,41 @@ function editableState(draft: EbayListingDraft) {
     quantity: draft.quantity,
     options: listingOptions(draft),
   });
+}
+
+async function waitForDraftJob(jobId: string) {
+  const deadline = Date.now() + JOB_MAX_WAIT_MS;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, JOB_POLL_INTERVAL_MS));
+    const response = await fetch(
+      `/api/channels/ebay/draft-jobs?id=${encodeURIComponent(jobId)}`,
+      { cache: "no-store" }
+    );
+    const payload = (await response.json()) as {
+      job?: EbayDraftJob;
+      draft?: EbayListingDraft | null;
+      error?: string;
+    };
+    if (!response.ok || !payload.job) {
+      throw new Error(
+        payload.error || "Der KI-Auftrag konnte nicht gelesen werden."
+      );
+    }
+    if (payload.job.status === "completed") {
+      if (!payload.draft) {
+        throw new Error("Der KI-Auftrag ist fertig, aber der Entwurf fehlt.");
+      }
+      return payload.draft;
+    }
+    if (payload.job.status === "failed") {
+      throw new Error(
+        payload.job.error || "Die KI-Erstellung ist fehlgeschlagen."
+      );
+    }
+  }
+  throw new Error(
+    "Die KI-Erstellung dauert länger als 20 Minuten. Der Auftrag läuft möglicherweise weiter."
+  );
 }
 
 export default function EbayModule({
@@ -547,11 +585,11 @@ export default function EbayModule({
     setBusy("drafts");
     setProgress(0);
     setFeedback(null);
-    const failed: string[] = [];
+    const failed: Array<{ articleId: string; message: string }> = [];
     let first: EbayListingDraft | undefined;
     for (const articleId of ids) {
       try {
-        const response = await fetch("/api/channels/ebay/drafts", {
+        const response = await fetch("/api/channels/ebay/draft-jobs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -560,30 +598,44 @@ export default function EbayModule({
           }),
         });
         const payload = (await response.json()) as {
-          draft?: EbayListingDraft;
+          job?: EbayDraftJob;
           error?: string;
         };
-        if (!response.ok || !payload.draft) {
-          throw new Error(payload.error || "Entwurf fehlgeschlagen.");
+        if (!response.ok || !payload.job) {
+          throw new Error(
+            payload.error || "KI-Auftrag konnte nicht gestartet werden."
+          );
         }
-        first ||= payload.draft;
+        const draft = await waitForDraftJob(payload.job.id);
+        first ||= draft;
         setDrafts((current) => [
-          payload.draft!,
+          draft,
           ...current.filter(
-            (item) => item.source.articleId !== payload.draft!.source.articleId
+            (item) => item.source.articleId !== draft.source.articleId
           ),
         ]);
-      } catch {
-        failed.push(articleId);
+      } catch (error) {
+        failed.push({
+          articleId,
+          message:
+            error instanceof Error ? error.message : "Unbekannter Fehler",
+        });
       }
       setProgress((value) => value + 1);
     }
     if (first) selectDraft(first);
-    setSelected(failed);
+    setSelected(failed.map((item) => item.articleId));
     setFeedback({
       kind: failed.length ? "error" : "success",
       message: failed.length
-        ? `${ids.length - failed.length} Entwürfe erstellt, ${failed.length} fehlgeschlagen.`
+        ? `${ids.length - failed.length} Entwürfe erstellt, ${failed.length} fehlgeschlagen. ${failed
+            .map((item) => {
+              const article = candidates.find(
+                (candidate) => candidate.articleId === item.articleId
+              );
+              return `${article?.articleNumber || item.articleId}: ${item.message}`;
+            })
+            .join(" | ")}`
         : `${ids.length} KI-Entwürfe erstellt${selectedTemplateId !== "none" ? " und mit dem gewählten Template vorbelegt" : ""}. Als Nächstes Kategorie und Merkmale prüfen.`,
     });
     setBusy("");

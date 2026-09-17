@@ -214,6 +214,11 @@ export async function openAIResponse(body: Record<string, unknown>) {
     );
   }
 
+  const configuredTimeout = Number(process.env.OPENAI_REQUEST_TIMEOUT_MS);
+  const timeoutMs =
+    Number.isFinite(configuredTimeout) && configuredTimeout >= 30_000
+      ? Math.min(configuredTimeout, 600_000)
+      : 300_000;
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: {
@@ -222,7 +227,7 @@ export async function openAIResponse(body: Record<string, unknown>) {
     },
     body: JSON.stringify(body),
     cache: "no-store",
-    signal: AbortSignal.timeout(110_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   const payload = (await response.json()) as OpenAIResponse;

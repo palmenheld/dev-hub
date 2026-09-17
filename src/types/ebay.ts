@@ -169,6 +169,17 @@ export type EbayGeneratedCopy = {
   };
 };
 
+export type EbayDraftJob = {
+  id: string;
+  articleId: string;
+  articleNumber: string;
+  status: "queued" | "running" | "completed" | "failed";
+  createdAt: string;
+  updatedAt: string;
+  draftId?: string;
+  error?: string;
+};
+
 export type EbayListingDraft = {
   id: string;
   status:
