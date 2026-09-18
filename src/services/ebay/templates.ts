@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { EbayListingTemplate } from "@/types/ebay";
 import type { ProductCandidate } from "@/types/shopwarePublishing";
 import { withEbayMutationLock } from "./lock";
+import { ebaySuggestedPrice } from "./pricing";
 import {
   deleteEbayTemplateFile,
   getEbayDraft,
@@ -201,10 +202,15 @@ export function applyEbayTemplate(
       (_, token: string) => values[token] || ""
     )
   );
-  const basePrice = input.candidate.price;
-  if (basePrice === undefined) {
+  const standardPrice = input.candidate.price;
+  const heightCm = input.candidate.heightCm;
+  if (standardPrice === undefined) {
     throw new Error("Der Weclapp-Artikel hat keinen verwendbaren Preis.");
   }
+  if (heightCm === undefined) {
+    throw new Error("Der Weclapp-Artikel hat keine verwendbare Höhe.");
+  }
+  const basePrice = ebaySuggestedPrice(standardPrice, heightCm);
   const adjustedPrice =
     basePrice * (1 + template.priceAdjustmentPercent / 100);
   const stock = Math.max(0, Math.floor(input.candidate.stock ?? 0));

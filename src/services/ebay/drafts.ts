@@ -18,6 +18,7 @@ import {
   getEbayCategoryAspects,
   getEbayCategoryConditions,
 } from "./metadata";
+import { ebaySuggestedPrice } from "./pricing";
 import { getEbayConnection } from "./config";
 import { getEbaySettings } from "./store";
 import { applyEbayTemplate, resolveEbayTemplate } from "./templates";
@@ -458,22 +459,38 @@ export function validateEbayDraft(
   return { valid: errors.length === 0, errors, warnings };
 }
 
-async function applyAutomaticPlantCategory(draft: EbayListingDraft) {
+async function applyAutomaticEbayDefaults(draft: EbayListingDraft) {
   if (
-    draft.categoryId ||
-    !draft.generatedCopy ||
     (draft.status !== "ready" && draft.status !== "blocked")
   ) {
     return draft;
   }
-  if (!isPlantArticle(draft.source, draft.generatedCopy, draft.research)) {
+
+  const automaticCategory =
+    !draft.categoryId &&
+    draft.generatedCopy &&
+    isPlantArticle(draft.source, draft.generatedCopy, draft.research)
+      ? EBAY_PLANT_CATEGORY
+      : null;
+  const standardPrice = draft.source.price;
+  const heightCm = draft.source.heightCm;
+  const automaticPrice =
+    !draft.manuallyEdited &&
+    !draft.templateId &&
+    standardPrice !== undefined &&
+    heightCm !== undefined &&
+    Math.abs(draft.price - standardPrice) < 0.005
+      ? ebaySuggestedPrice(standardPrice, heightCm)
+      : null;
+  if (!automaticCategory && automaticPrice === null) {
     return draft;
   }
 
   const next: EbayListingDraft = {
     ...draft,
-    categoryId: EBAY_PLANT_CATEGORY.id,
-    categoryName: EBAY_PLANT_CATEGORY.name,
+    categoryId: automaticCategory?.id || draft.categoryId,
+    categoryName: automaticCategory?.name || draft.categoryName,
+    price: automaticPrice ?? draft.price,
     approvedAt: undefined,
     updatedAt: new Date().toISOString(),
   };
@@ -483,9 +500,9 @@ async function applyAutomaticPlantCategory(draft: EbayListingDraft) {
   return next;
 }
 
-export async function backfillAutomaticEbayCategories() {
+export async function backfillAutomaticEbayDefaults() {
   const drafts = await listEbayDrafts();
-  return Promise.all(drafts.map((draft) => applyAutomaticPlantCategory(draft)));
+  return Promise.all(drafts.map((draft) => applyAutomaticEbayDefaults(draft)));
 }
 
 async function createUnlocked(
@@ -509,7 +526,7 @@ async function createUnlocked(
     );
   }
   if (existing && !replaceExisting) {
-    return applyAutomaticPlantCategory(existing);
+    return applyAutomaticEbayDefaults(existing);
   }
 
   const template = await resolveEbayTemplate(templateId);
@@ -567,7 +584,9 @@ async function createUnlocked(
       ...generatedAspects,
       ...(templateValues?.aspects || {}),
     },
-    price: templateValues?.price || candidate.price,
+    price:
+      templateValues?.price ||
+      ebaySuggestedPrice(candidate.price, candidate.heightCm),
     quantity:
       templateValues?.quantity ??
       Math.max(0, Math.floor(candidate.stock ?? 0)),
