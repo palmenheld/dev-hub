@@ -1124,15 +1124,15 @@ export default function EbayModule({
             eBay-Zugang einmalig einrichten
           </h2>
           <p className="mt-2 text-sm text-slate-600">
-            Hinterlege zunächst die Sandbox-Werte serverseitig. Den Verkäufer-Schlüssel
-            erzeugt der Hub anschließend selbst über „Mit eBay verbinden“ und gibt ihn
-            niemals an den Browser aus.
+            Hinterlege die Werte für das gewählte Zielsystem serverseitig. Den
+            Verkäufer-Schlüssel erzeugt der Hub anschließend über „Mit eBay verbinden“
+            und gibt ihn niemals an den Browser aus.
           </p>
           <div className="mt-4 rounded-xl bg-slate-950 p-4 font-mono text-sm text-slate-100">
-            <div>EBAY_ENVIRONMENT=sandbox</div>
-            <div>EBAY_CLIENT_ID=...</div>
-            <div>EBAY_CLIENT_SECRET=...</div>
-            <div>EBAY_RUNAME=...</div>
+            <div>EBAY_ENVIRONMENT=sandbox oder production</div>
+            <div>EBAY_SANDBOX_CLIENT_ID=... / EBAY_PRODUCTION_CLIENT_ID=...</div>
+            <div>EBAY_SANDBOX_CLIENT_SECRET=... / EBAY_PRODUCTION_CLIENT_SECRET=...</div>
+            <div>EBAY_SANDBOX_RUNAME=... / EBAY_PRODUCTION_RUNAME=...</div>
             <div>EBAY_OAUTH_CALLBACK_URL=https://…/api/channels/ebay/oauth/callback</div>
             <div>EBAY_PUBLISH_KEY=privater Sicherheitscode</div>
             <div>EBAY_MARKETPLACE_ID=EBAY_DE</div>
@@ -1140,10 +1140,10 @@ export default function EbayModule({
           <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
             <p className="font-bold">Im eBay Developer Portal</p>
             <p className="mt-1">
-              Beim Sandbox-Keyset unter „User Tokens“ einen Redirect URL name
+              Beim passenden Sandbox- oder Production-Keyset einen Redirect URL name
               anlegen. Als „Auth Accepted URL“ und „Auth Declined URL“ dieselbe
               HTTPS-Rücksprungadresse aus der Zeile oben eintragen. Den erzeugten
-              Redirect-Namen als EBAY_RUNAME übernehmen.
+              Redirect-Namen in die passende umgebungsspezifische Variable übernehmen.
             </p>
             {connection.oauthCallbackUrl && (
               <p className="mt-2 break-all font-mono text-xs">
@@ -1158,8 +1158,9 @@ export default function EbayModule({
             </p>
           )}
           <p className="mt-3 text-sm font-semibold text-amber-800">
-            Erst in der eBay-Testumgebung prüfen; für echte Anzeigen später bewusst
-            auf „production“ umstellen und neue Produktions-Zugangsdaten verwenden.
+            Sandbox und Produktion bleiben vollständig getrennt. In Produktion sind
+            Schreibzugriffe zusätzlich gesperrt, bis EBAY_PRODUCTION_WRITES_ENABLED
+            bewusst auf true gesetzt wird.
           </p>
         </section>
       )}

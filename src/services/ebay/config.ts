@@ -35,15 +35,23 @@ export function getEbayEnvironment(): EbayEnvironment {
     : "sandbox";
 }
 
+function environmentVariable(suffix: string, target: EbayEnvironment) {
+  const prefix = target === "production" ? "EBAY_PRODUCTION" : "EBAY_SANDBOX";
+  const environmentSpecific = process.env[`${prefix}_${suffix}`]?.trim();
+  if (environmentSpecific) return environmentSpecific;
+
+  return target === "sandbox" ? process.env[`EBAY_${suffix}`]?.trim() ?? "" : "";
+}
+
 function rawConfiguration() {
   const currentEnvironment = getEbayEnvironment();
   return {
-    clientId: process.env.EBAY_CLIENT_ID?.trim() ?? "",
-    clientSecret: process.env.EBAY_CLIENT_SECRET?.trim() ?? "",
+    clientId: environmentVariable("CLIENT_ID", currentEnvironment),
+    clientSecret: environmentVariable("CLIENT_SECRET", currentEnvironment),
     refreshToken:
-      process.env.EBAY_REFRESH_TOKEN?.trim() ||
+      environmentVariable("REFRESH_TOKEN", currentEnvironment) ||
       readStoredEbayRefreshToken(currentEnvironment),
-    ruName: process.env.EBAY_RUNAME?.trim() ?? "",
+    ruName: environmentVariable("RUNAME", currentEnvironment),
     oauthCallbackUrl: process.env.EBAY_OAUTH_CALLBACK_URL?.trim() ?? "",
   };
 }
