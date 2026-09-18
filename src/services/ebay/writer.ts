@@ -53,7 +53,8 @@ function assertDraftTarget(
 
 async function offersForSku(sku: string) {
   const result = await ebayRequest<OffersResponse>(
-    "sell/inventory/v1/offer?sku=" + encodeURIComponent(sku)
+    "sell/inventory/v1/offer?sku=" + encodeURIComponent(sku),
+    { allowNotFound: true }
   );
   return result?.offers ?? [];
 }
