@@ -271,16 +271,26 @@ async function ensurePolicy(options: {
 export async function bootstrapEbaySandbox(
   input: EbaySandboxBootstrapInput
 ): Promise<EbaySandboxBootstrapResult> {
-  if (getEbayEnvironment() !== "sandbox") {
-    throw new Error(
-      "Der automatische Assistent ist ausschließlich für die eBay-Sandbox freigegeben."
-    );
-  }
-
+  const environment = getEbayEnvironment();
   const current = await getEbaySettings();
   const marketplaceId = current.marketplaceId;
-  const program = await enableSellingPolicies();
   const location = await ensureLocation(input);
+
+  if (environment === "production") {
+    const settings: EbayPublishingSettings = {
+      ...current,
+      merchantLocationKey: location.id || current.merchantLocationKey,
+    };
+    await saveEbaySettings(settings);
+    const result = location.result;
+    return {
+      completed: result.status !== "failed",
+      setup: await loadEbaySetup(),
+      steps: [result],
+    };
+  }
+
+  const program = await enableSellingPolicies();
   const commonPolicyFields = {
     marketplaceId,
     categoryTypes: [{ name: CATEGORY_TYPE }],

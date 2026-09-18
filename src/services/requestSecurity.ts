@@ -21,16 +21,7 @@ export function assertSameOrigin(request: Request) {
 }
 
 
-export function assertEbayPublishKey(request: Request) {
-  if (
-    process.env.EBAY_ENVIRONMENT?.trim().toLowerCase() === "production" &&
-    process.env.EBAY_PRODUCTION_WRITES_ENABLED?.trim().toLowerCase() !== "true"
-  ) {
-    throw new Error(
-      "Live-Schreibzugriffe sind serverseitig gesperrt. Erst nach einem erfolgreichen Verbindungstest EBAY_PRODUCTION_WRITES_ENABLED=true setzen."
-    );
-  }
-
+export function assertEbaySecurityKey(request: Request) {
   const expected = process.env.EBAY_PUBLISH_KEY?.trim();
   if (!expected) {
     throw new Error(
@@ -43,4 +34,17 @@ export function assertEbayPublishKey(request: Request) {
   if (!provided || !timingSafeEqual(expectedHash, providedHash)) {
     throw new Error("Der eBay-Sicherheitscode ist nicht korrekt.");
   }
+}
+
+export function assertEbayPublishKey(request: Request) {
+  if (
+    process.env.EBAY_ENVIRONMENT?.trim().toLowerCase() === "production" &&
+    process.env.EBAY_PRODUCTION_WRITES_ENABLED?.trim().toLowerCase() !== "true"
+  ) {
+    throw new Error(
+      "Live-Schreibzugriffe sind serverseitig gesperrt. Erst nach einem erfolgreichen Verbindungstest EBAY_PRODUCTION_WRITES_ENABLED=true setzen."
+    );
+  }
+
+  assertEbaySecurityKey(request);
 }

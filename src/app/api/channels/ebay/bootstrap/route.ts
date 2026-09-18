@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import type { EbaySandboxBootstrapInput } from "@/types/ebay";
 import { bootstrapEbaySandbox } from "@/services/ebay/bootstrap";
-import { assertSameOrigin } from "@/services/requestSecurity";
+import {
+  assertEbaySecurityKey,
+  assertSameOrigin,
+} from "@/services/requestSecurity";
+import { getEbayEnvironment } from "@/services/ebay/config";
 
 const SHIPPING_SERVICES = new Set([
   "DE_DHLPaket",
@@ -99,6 +103,9 @@ export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
     const input = normalize(await request.json());
+    if (getEbayEnvironment() === "production") {
+      assertEbaySecurityKey(request);
+    }
     return NextResponse.json(await bootstrapEbaySandbox(input));
   } catch (error) {
     return NextResponse.json(
@@ -106,7 +113,7 @@ export async function POST(request: Request) {
         error:
           error instanceof Error
             ? error.message
-            : "Die eBay-Sandbox konnte nicht eingerichtet werden.",
+            : "Die eBay-Einrichtung konnte nicht abgeschlossen werden.",
       },
       { status: 400 }
     );

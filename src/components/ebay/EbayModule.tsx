@@ -400,11 +400,17 @@ export default function EbayModule({
   }
 
   async function bootstrapSandbox() {
-    if (
-      !window.confirm(
-        "Der Hub aktiviert jetzt eBay-Geschäftsrichtlinien und legt Lagerort sowie drei Sandbox-Richtlinien an. Es wird keine Anzeige veröffentlicht. Fortfahren?"
-      )
-    ) return;
+    const production = connection.environment === "production";
+    const confirmed = window.confirm(
+      production
+        ? "Der Hub legt genau einen Lagerort im echten eBay-Konto an. Es wird keine Anzeige veröffentlicht. Fortfahren?"
+        : "Der Hub aktiviert jetzt eBay-Geschäftsrichtlinien und legt Lagerort sowie drei Sandbox-Richtlinien an. Es wird keine Anzeige veröffentlicht. Fortfahren?"
+    );
+    if (!confirmed) return;
+    const securityKey = production
+      ? window.prompt("Bitte den privaten eBay-Sicherheitscode eingeben:")
+      : "";
+    if (securityKey === null) return;
 
     setBusy("sandbox-bootstrap");
     setFeedback(null);
@@ -412,7 +418,10 @@ export default function EbayModule({
     try {
       const response = await fetch("/api/channels/ebay/bootstrap", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(securityKey ? { "X-Palmenheld-Publish-Key": securityKey } : {}),
+        },
         body: JSON.stringify(bootstrapForm),
       });
       const payload = (await response.json()) as
@@ -421,7 +430,7 @@ export default function EbayModule({
       if (!response.ok || !("setup" in payload)) {
         throw new Error(
           ("error" in payload && payload.error) ||
-            "Die Sandbox-Grundeinrichtung ist fehlgeschlagen."
+            "Die eBay-Grundeinrichtung ist fehlgeschlagen."
         );
       }
       setSetup(payload.setup);
@@ -431,7 +440,9 @@ export default function EbayModule({
       setFeedback({
         kind: payload.completed ? "success" : "error",
         message: payload.completed
-          ? "Die eBay-Sandbox ist vollständig vorbereitet und als Ziel gespeichert."
+          ? production
+            ? "Der Live-Lagerort wurde angelegt und als eBay-Ziel gespeichert."
+            : "Die eBay-Sandbox ist vollständig vorbereitet und als Ziel gespeichert."
           : "eBay hat nur einen Teil der Einrichtung angenommen. Die Ergebnisse stehen direkt darunter; fehlgeschlagene Schritte können erneut versucht werden.",
       });
     } catch (error) {
@@ -1193,18 +1204,20 @@ export default function EbayModule({
               </ul>
             </div>
           ) : null}
-          {connection.environment === "sandbox" && (
+          {(connection.environment === "sandbox" || setup.locations.length === 0) && (
             <details
               className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4"
               open={Boolean(setup.warnings?.length)}
             >
               <summary className="cursor-pointer font-bold text-blue-950">
-                eBay-Sandbox automatisch einrichten
+                {connection.environment === "production"
+                  ? "Fehlenden Live-Lagerort anlegen"
+                  : "eBay-Sandbox automatisch einrichten"}
               </summary>
               <p className="mt-2 text-sm text-blue-900">
-                Der Hub aktiviert die Geschäftsrichtlinien und legt einen
-                Lagerort sowie je eine Versand-, Zahlungs- und
-                Rückgaberichtlinie an. Dabei wird keine Anzeige veröffentlicht.
+                {connection.environment === "production"
+                  ? "Der Hub legt ausschließlich einen API-Lagerort im echten eBay-Konto an. Dafür zählen nur Lagerort-Schlüssel, Name, Postleitzahl und Ort; es wird keine Anzeige veröffentlicht."
+                  : "Der Hub aktiviert die Geschäftsrichtlinien und legt einen Lagerort sowie je eine Versand-, Zahlungs- und Rückgaberichtlinie an. Dabei wird keine Anzeige veröffentlicht."}
               </p>
               <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <label className="text-sm font-semibold">
@@ -1383,8 +1396,10 @@ export default function EbayModule({
                 className="mt-4 rounded-xl bg-[var(--ph-green-dark)] px-5 py-3 font-semibold text-white disabled:opacity-40"
               >
                 {busy === "sandbox-bootstrap"
-                  ? "Sandbox wird eingerichtet…"
-                  : "eBay-Sandbox jetzt einrichten"}
+                  ? "eBay wird eingerichtet…"
+                  : connection.environment === "production"
+                    ? "Live-Lagerort sicher anlegen"
+                    : "eBay-Sandbox jetzt einrichten"}
               </button>
               {!bootstrapForm.postalCode.trim() && (
                 <p className="mt-2 text-xs font-semibold text-amber-800">
