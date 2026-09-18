@@ -87,6 +87,38 @@ function compactTitle(candidate: ProductCandidate, germanName: string) {
     : shortened;
 }
 
+const EBAY_PLANT_CATEGORY = {
+  id: "19617",
+  name: "Pflanzen, Bäume & Sträucher",
+} as const;
+
+function isPlantArticle(
+  candidate: ProductCandidate,
+  copy: EbayGeneratedCopy,
+  research: EbayListingDraft["research"]
+) {
+  const latinName = (research.confirmedLatinName || candidate.latinName).trim();
+  const hasBotanicalName =
+    latinName.split(/\s+/).length >= 2 &&
+    /^[A-Za-zÀ-ÖØ-öø-ÿ×'’ -]+$/.test(latinName);
+  if (hasBotanicalName) return true;
+
+  const searchText = [
+    candidate.germanName,
+    candidate.latinName,
+    research.confirmedGermanName,
+    research.confirmedLatinName,
+    copy.itemSpecifics.commonName,
+    copy.itemSpecifics.productType,
+  ].join(" ");
+
+  return (
+    /\b(?:pflanzen?|palmen?|baum|bäume|bäumchen|sträucher?|hecken?|bambus|bonsai|farne?|gemüse|kakteen?|sukkulenten?|karnivoren?|kletterpflanzen?|kräuter?|obstgehölz|orchideen?|rosen?|wasserpflanzen?|ziergräser?|zimmerpflanzen?|stauden?|gewächs)\b/i.test(
+      searchText
+    )
+  );
+}
+
 function sanitizeAspects(value: unknown) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return {} as Record<string, string[]>;
@@ -474,6 +506,10 @@ async function createUnlocked(
     : null;
   const options =
     templateValues?.listingOptions ?? defaultListingOptions(candidate);
+  const automaticCategory = isPlantArticle(candidate, generatedCopy, research)
+    ? EBAY_PLANT_CATEGORY
+    : null;
+
   const base: EbayListingDraft = {
     id: existing?.id ?? randomUUID(),
     status: "blocked",
@@ -489,8 +525,10 @@ async function createUnlocked(
       candidate,
       research
     ),
-    categoryId: templateValues?.categoryId || "",
-    categoryName: templateValues?.categoryName || "",
+    categoryId:
+      templateValues?.categoryId || automaticCategory?.id || "",
+    categoryName:
+      templateValues?.categoryName || automaticCategory?.name || "",
     condition: options.condition,
     options,
     aspects: {
