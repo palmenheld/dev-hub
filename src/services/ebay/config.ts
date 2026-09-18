@@ -139,6 +139,10 @@ export function getEbayConnection(
   const missingPublishingSetup = [
     ...missingPublishingSettings(settings),
     ...(process.env.EBAY_PUBLISH_KEY?.trim() ? [] : ["eBay-Sicherheitscode"]),
+    ...(getEbayEnvironment() === "production" &&
+    process.env.EBAY_PRODUCTION_WRITES_ENABLED?.trim().toLowerCase() !== "true"
+      ? ["Live-Schreibzugriff (EBAY_PRODUCTION_WRITES_ENABLED=true)"]
+      : []),
   ];
   const currentEnvironment = getEbayEnvironment();
 

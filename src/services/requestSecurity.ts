@@ -22,6 +22,15 @@ export function assertSameOrigin(request: Request) {
 
 
 export function assertEbayPublishKey(request: Request) {
+  if (
+    process.env.EBAY_ENVIRONMENT?.trim().toLowerCase() === "production" &&
+    process.env.EBAY_PRODUCTION_WRITES_ENABLED?.trim().toLowerCase() !== "true"
+  ) {
+    throw new Error(
+      "Live-Schreibzugriffe sind serverseitig gesperrt. Erst nach einem erfolgreichen Verbindungstest EBAY_PRODUCTION_WRITES_ENABLED=true setzen."
+    );
+  }
+
   const expected = process.env.EBAY_PUBLISH_KEY?.trim();
   if (!expected) {
     throw new Error(
