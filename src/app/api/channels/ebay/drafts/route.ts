@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { createEbayDraft } from "@/services/ebay/drafts";
-import { listEbayDrafts } from "@/services/ebay/store";
+import {
+  backfillAutomaticEbayCategories,
+  createEbayDraft,
+} from "@/services/ebay/drafts";
 import { assertSameOrigin } from "@/services/requestSecurity";
 
 export const maxDuration = 360;
 
 export async function GET() {
   try {
-    return NextResponse.json({ drafts: await listEbayDrafts() });
+    return NextResponse.json({ drafts: await backfillAutomaticEbayCategories() });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "eBay-Entwürfe konnten nicht geladen werden." },

@@ -458,6 +458,36 @@ export function validateEbayDraft(
   return { valid: errors.length === 0, errors, warnings };
 }
 
+async function applyAutomaticPlantCategory(draft: EbayListingDraft) {
+  if (
+    draft.categoryId ||
+    !draft.generatedCopy ||
+    (draft.status !== "ready" && draft.status !== "blocked")
+  ) {
+    return draft;
+  }
+  if (!isPlantArticle(draft.source, draft.generatedCopy, draft.research)) {
+    return draft;
+  }
+
+  const next: EbayListingDraft = {
+    ...draft,
+    categoryId: EBAY_PLANT_CATEGORY.id,
+    categoryName: EBAY_PLANT_CATEGORY.name,
+    approvedAt: undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  next.validation = validateEbayDraft(next);
+  next.status = next.validation.valid ? "ready" : "blocked";
+  await saveEbayDraft(next);
+  return next;
+}
+
+export async function backfillAutomaticEbayCategories() {
+  const drafts = await listEbayDrafts();
+  return Promise.all(drafts.map((draft) => applyAutomaticPlantCategory(draft)));
+}
+
 async function createUnlocked(
   articleId: string,
   replaceExisting: boolean,
@@ -478,7 +508,9 @@ async function createUnlocked(
       "Dieser Artikel wird bereits als eBay-Angebot verwaltet. Nutze die Angebotsaktionen im gespeicherten Vorgang."
     );
   }
-  if (existing && !replaceExisting) return existing;
+  if (existing && !replaceExisting) {
+    return applyAutomaticPlantCategory(existing);
+  }
 
   const template = await resolveEbayTemplate(templateId);
   const candidate = await getEbayCandidate(articleId);
