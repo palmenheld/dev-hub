@@ -1,5 +1,7 @@
 import Link from "next/link";
 import ArticleList from "@/components/articles/ArticleList";
+export const dynamic = "force-dynamic";
+
 
 export default function ArticlesPage() {
   return (

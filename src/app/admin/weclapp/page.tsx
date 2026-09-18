@@ -1,6 +1,8 @@
 import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import { getArticles } from "@/services/weclapp";
+export const dynamic = "force-dynamic";
+
 
 export default async function WeclappInspectorPage() {
   const response = await getArticles({

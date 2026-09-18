@@ -5,6 +5,8 @@ import {
   getKleinanzeigenConnection,
   getKleinanzeigenListings,
 } from "@/services/kleinanzeigen";
+export const dynamic = "force-dynamic";
+
 
 export default async function KleinanzeigenPage() {
   const [listings, articles] = await Promise.all([

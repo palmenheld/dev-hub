@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ArticleEditor from "./ArticleEditor";
 import { getArticleById } from "@/services/articleService";
+export const dynamic = "force-dynamic";
+
 
 export default async function ArticlePage({
   params,
