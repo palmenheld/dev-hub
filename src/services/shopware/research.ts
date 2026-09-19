@@ -4,6 +4,7 @@ import {
   ResearchSource,
 } from "@/types/shopwarePublishing";
 import { getResearchConfiguration } from "./publishingCandidates";
+import { preferredGermanCommonName } from "./plantNames";
 
 type OpenAIResponse = {
   status?: string;
@@ -290,7 +291,7 @@ export async function researchProduct(
       {
         role: "developer",
         content:
-          "Du recherchierst Pflanzen fachlich und skeptisch. Bevorzuge botanische Gärten, Universitäten, staatliche Beratungsstellen, Fachgesellschaften und etablierte gärtnerische Institutionen. Händlertexte dürfen keine Kernaussage allein tragen. Trenne Freiland und Kübelhaltung. Erfinde keine Werte. Bei widersprüchlichen Angaben dokumentiere Spannweite und konservative Empfehlung.",
+          "Du recherchierst Pflanzen fachlich und skeptisch. Bevorzuge botanische Gärten, Universitäten, staatliche Beratungsstellen, Fachgesellschaften und etablierte gärtnerische Institutionen. Händlertexte dürfen keine fachliche Kernaussage allein tragen; für die tatsächliche Häufigkeit deutscher Trivial- und Handelsnamen darfst du zusätzlich mehrere etablierte deutsche Pflanzenhändler und Baumschulen vergleichen. Ermittle ausdrücklich den in Deutschland bei Endkunden und im Pflanzenhandel am häufigsten verwendeten Hauptnamen. Taxonomische Übersetzungen, amtliche Namen und seltenere Synonyme sind nachrangig. Trenne Freiland und Kübelhaltung. Erfinde keine Werte. Bei widersprüchlichen Angaben dokumentiere Spannweite und konservative Empfehlung.",
       },
       {
         role: "user",
@@ -301,7 +302,7 @@ Ausgangsdaten:
 - Verkaufsgröße: ${candidate.heightLabel || candidate.heightCm + " cm"}
 - Topfgröße: ${candidate.potSize || "nicht angegeben"}
 
-Prüfe zuerst die botanische Identität. Recherchiere danach Erscheinungsbild/Wuchs, Licht, Wasser, Düngung und Winterhärte. Jede Kernaussage braucht mindestens zwei voneinander unabhängige Organisationen. Die Aussage zur Winterhärte und eine konkrete konservative Minimaltemperatur in °C brauchen mindestens drei unabhängige Organisationen. Nenne pro Aussage die vollständigen URLs direkt im Dossier. Wenn die Beleglage nicht reicht, sage das klar und erfinde keinen Ersatz. Schreibe keine medizinischen oder garantierten Erfolgsversprechen.`,
+Prüfe zuerst die botanische Identität. Ermittle danach den in Deutschland üblichsten Trivial- und Verkaufsnamen anhand der tatsächlichen Verwendung bei etablierten deutschen Fachquellen und Pflanzenhändlern. Verwende den häufigsten Endkundenbegriff als Hauptnamen und führe botanisch korrekte, aber weniger gebräuchliche Namen nur als Synonyme. Beispiel: Olea europaea heißt im deutschen Verkauf und allgemeinen Sprachgebrauch primär Olivenbaum; Echter Ölbaum ist nur ein nachrangiges Synonym. Recherchiere danach Erscheinungsbild/Wuchs, Licht, Wasser, Düngung und Winterhärte. Jede Kernaussage braucht mindestens zwei voneinander unabhängige Organisationen. Die Aussage zur Winterhärte und eine konkrete konservative Minimaltemperatur in °C brauchen mindestens drei unabhängige Organisationen. Nenne pro Aussage die vollständigen URLs direkt im Dossier. Wenn die Beleglage nicht reicht, sage das klar und erfinde keinen Ersatz. Schreibe keine medizinischen oder garantierten Erfolgsversprechen.`,
       },
     ],
   });
@@ -322,14 +323,17 @@ Prüfe zuerst die botanische Identität. Recherchiere danach Erscheinungsbild/Wu
       {
         role: "developer",
         content:
-          "Du bist ein strenger Faktenprüfer und SEO-Redakteur. Nutze ausschließlich Aussagen aus dem Dossier und ausschließlich IDs aus dem Quellenkatalog. Jede Textpassage muss ihre Quellen-IDs tragen. Markiere researchComplete=false, sobald eine Pflichtaussage nicht ausreichend unabhängig belegt ist. Schreibe sachlich, hilfreich und ohne Superlative oder Garantien.",
+          "Du bist ein strenger Faktenprüfer und SEO-Redakteur für den deutschen Pflanzenhandel. Nutze ausschließlich Aussagen aus dem Dossier und ausschließlich IDs aus dem Quellenkatalog. Jede Textpassage muss ihre Quellen-IDs tragen. Der Hauptname muss dem in Deutschland üblichsten Such-, Alltags- und Verkaufsnamen entsprechen; seltenere botanische oder amtliche Synonyme dürfen ihn nicht verdrängen. Markiere researchComplete=false, sobald eine Pflichtaussage nicht ausreichend unabhängig belegt ist. Schreibe sachlich, hilfreich und ohne Superlative oder Garantien.",
       },
       {
         role: "user",
         content: `Erzeuge aus dem Dossier strukturierte deutsche Produktinhalte.
 
 Anforderungen:
-- confirmedGermanName muss der belegte gebräuchliche deutsche Trivialname sein und darf nicht einfach den botanischen/lateinischen Namen wiederholen.
+- confirmedGermanName muss der in Deutschland am häufigsten verwendete Trivial- und Verkaufsname sein und darf nicht einfach den botanischen/lateinischen Namen wiederholen.
+- Entscheide nach tatsächlichem deutschem Sprach-, Such- und Handelsgebrauch, nicht danach, welcher Name wie eine direkte taxonomische Übersetzung klingt.
+- Seltenere oder fachsprachliche Synonyme dürfen im Identitätsabschnitt erwähnt werden, aber nicht confirmedGermanName, Titel oder führender Suchbegriff werden.
+- Verbindliches Beispiel: Olea europaea → confirmedGermanName "Olivenbaum"; "Echter Ölbaum" höchstens als nachrangiges Synonym.
 - Meta-Titel idealerweise 45–60 Zeichen.
 - Meta-Beschreibung idealerweise 140–160 Zeichen.
 - 5–8 klare Textblöcke mit insgesamt ungefähr 350–650 Wörtern.
@@ -361,5 +365,9 @@ ${dossier}`,
   const research = JSON.parse(
     extractOutputText(structuredResponse)
   ) as ProductResearch;
+  research.confirmedGermanName = preferredGermanCommonName(
+    research.confirmedLatinName || candidate.latinName,
+    research.confirmedGermanName
+  );
   return { research, sources };
 }

@@ -2,6 +2,7 @@ import type { ProductCandidate, ProductResearch, ResearchSource } from "@/types/
 import type { EbayGeneratedCopy } from "@/types/ebay";
 import { extractOutputText, openAIResponse } from "@/services/shopware/research";
 import { getResearchConfiguration } from "@/services/shopware/publishingCandidates";
+import { preferredGermanCommonName } from "@/services/shopware/plantNames";
 
 const EBAY_COPY_SCHEMA = {
   type: "object",
@@ -183,7 +184,14 @@ function resolvedCommonName(
       value
     );
   return (
-    [copy.itemSpecifics.commonName, ...copy.searchTerms]
+    [
+      preferredGermanCommonName(
+        research.confirmedLatinName,
+        research.confirmedGermanName
+      ),
+      copy.itemSpecifics.commonName,
+      ...copy.searchTerms,
+    ]
       .map(normalizedText)
       .find(
         (value) =>
@@ -420,7 +428,7 @@ REGELN:
 - winter: Winterhärte, konservative Minimaltemperatur ${research.minTemperatureC} °C, Freiland/Kübel und Richtwertcharakter nennen.
 - Insgesamt ungefähr 250–450 Wörter. Kaufentscheidende Artikeldaten innerhalb der ersten etwa 800 Zeichen.
 - searchTerms: vier bis zwölf passende Begriffe nur zur internen Qualitätsprüfung.
-- itemSpecifics.commonName: den bestätigten gebräuchlichen deutschen Trivialnamen angeben. Niemals den botanischen/lateinischen Namen wiederholen. Beispiel: Für Strelitzia reginae ist der allgemeine Name Paradiesvogelblume.
+- itemSpecifics.commonName: exakt den bestätigten, in Deutschland gebräuchlichsten Trivial- und Verkaufsnamen angeben. Seltenere fachsprachliche Synonyme nicht bevorzugen und niemals den botanischen/lateinischen Namen wiederholen. Beispiele: Strelitzia reginae → Paradiesvogelblume; Olea europaea → Olivenbaum, nicht Echter Ölbaum.
 - itemSpecifics.features: eine bis sechs belegte Besonderheiten ausschließlich aus dieser eBay-Liste wählen: Biologisch, Blühend, Eingetopft, Einjährig, Eßbar, Hirschresistent, Hitzebeständig, Immergrün, Kleinwüchsig, Laubabwerfend, Luftreinigung, Mehrjährig, Schnellwüchsig, Trockenresistent, Variegated, Winterhart, Zweijährig. Nur tatsächlich durch die Forschung gestützte Werte wählen; bei einer blühenden Strelitzie insbesondere Blühend.
 - itemSpecifics.waterRequirement: den belegten Wasserbedarf exakt als Hoch, Mittel oder Niedrig einordnen.
 - itemSpecifics.sunlight: ein bis drei passende Werte ausschließlich aus Mittlere Sonne, Schwache Sonne, Volle Sonne, Vollschatten wählen.
