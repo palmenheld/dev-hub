@@ -4,6 +4,7 @@ export type WeclappArticle = {
   articleNumber?: string;
   name?: string;
   description?: string;
+  articleCategoryId?: string;
 
   ean?: string;
   manufacturerPartNumber?: string;

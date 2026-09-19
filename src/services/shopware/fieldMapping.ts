@@ -407,7 +407,8 @@ export function mapCandidate(
   fieldMap: WeclappFieldMap,
   alreadyInShopware = false,
   priceSource?: string,
-  priceFallback = false
+  priceFallback = false,
+  articleCategoryName?: string
 ): ProductCandidate {
   const germanName =
     textValue(readSelector(article, fieldMap.germanName)) ||
@@ -433,6 +434,7 @@ export function mapCandidate(
   collectUrls(readSelector(article, fieldMap.images), imageSet);
   const imageUrls = [...imageSet].slice(0, 12);
   const articleNumber = textValue(article.articleNumber);
+  const articleCategoryId = textValue(article.articleCategoryId);
   const missing: string[] = [];
 
   if (!articleNumber) missing.push("Artikelnummer");
@@ -448,6 +450,10 @@ export function mapCandidate(
     articleNumber,
     germanName,
     latinName,
+    articleCategoryId: articleCategoryId || undefined,
+    articleCategoryName:
+      articleCategoryName ||
+      (articleCategoryId ? `Kategorie ${articleCategoryId}` : undefined),
     active: article.active !== false,
     heightCm,
     heightMinCm: height?.minCm,

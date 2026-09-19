@@ -16,6 +16,7 @@ type ChannelFilter =
   | "shopware"
   | "ebay"
   | "kleinanzeigen";
+const PAGE_SIZE = 100;
 
 function money(value?: number) {
   if (value === undefined) return "–";
@@ -102,15 +103,15 @@ export default function OfferManagement() {
     KleinanzeigenListing[]
   >([]);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [onlyComplete, setOnlyComplete] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (targetPage: number) => {
+  const load = useCallback(async () => {
     setBusy(true);
     setError("");
     try {
@@ -120,10 +121,9 @@ export default function OfferManagement() {
         ebayResponse,
         kleinanzeigenResponse,
       ] = await Promise.all([
-        fetch(
-          `/api/channels/shopware/candidates?limit=100&page=${targetPage}`,
-          { cache: "no-store" }
-        ),
+        fetch("/api/channels/shopware/candidates?all=true", {
+          cache: "no-store",
+        }),
         fetch("/api/channels/shopware/drafts", { cache: "no-store" }),
         fetch("/api/channels/ebay/drafts", { cache: "no-store" }),
         fetch("/api/channels/kleinanzeigen/listings", { cache: "no-store" }),
@@ -170,8 +170,7 @@ export default function OfferManagement() {
       setShopwareDrafts(shopwarePayload.drafts);
       setEbayDrafts(ebayPayload.drafts);
       setKleinanzeigenListings(kleinanzeigenPayload.listings);
-      setHasMore(Boolean(candidatesPayload.hasMore));
-      setPage(targetPage);
+      setPage(1);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unbekannter Fehler");
     } finally {
@@ -181,7 +180,7 @@ export default function OfferManagement() {
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      void load(1);
+      void load();
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [load]);
@@ -211,6 +210,16 @@ export default function OfferManagement() {
     return result;
   }, [kleinanzeigenListings]);
 
+  const categories = useMemo(
+    () =>
+      [...new Set(
+        candidates
+          .map((candidate) => candidate.articleCategoryName)
+          .filter((value): value is string => Boolean(value))
+      )].sort((left, right) => left.localeCompare(right, "de")),
+    [candidates]
+  );
+
   const visible = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("de");
     return candidates.filter((candidate) => {
@@ -237,6 +246,8 @@ export default function OfferManagement() {
       const hasKleinanzeigen = Boolean(kleinanzeigen);
       return (
         (!term || searchable.includes(term)) &&
+        (categoryFilter === "all" ||
+          candidate.articleCategoryName === categoryFilter) &&
         (activeFilter === "all" ||
           (activeFilter === "active"
             ? candidate.active !== false
@@ -255,6 +266,7 @@ export default function OfferManagement() {
   }, [
     activeFilter,
     candidates,
+    categoryFilter,
     channelFilter,
     ebayByArticle,
     kleinanzeigenByArticle,
@@ -263,6 +275,11 @@ export default function OfferManagement() {
     search,
     shopwareByArticle,
   ]);
+  const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const pageCandidates = visible.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  );
 
   return (
     <div className="mx-auto max-w-[1800px]">
@@ -295,12 +312,15 @@ export default function OfferManagement() {
 
       <section className="mt-6 overflow-hidden rounded-2xl border bg-white shadow-sm">
         <div className="border-b p-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <label className="text-xs font-semibold text-slate-600 xl:col-span-2">
               Artikel, SKU oder Angebot suchen
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="z. B. 100000778, Olive oder Olea europaea"
                 className="mt-1 block w-full rounded-xl border px-3 py-2.5 text-sm font-normal text-slate-900"
               />
@@ -309,9 +329,10 @@ export default function OfferManagement() {
               Weclapp-Status
               <select
                 value={activeFilter}
-                onChange={(event) =>
-                  setActiveFilter(event.target.value as ActiveFilter)
-                }
+                onChange={(event) => {
+                  setActiveFilter(event.target.value as ActiveFilter);
+                  setPage(1);
+                }}
                 className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 text-sm font-normal text-slate-900"
               >
                 <option value="active">Nur aktive Artikel</option>
@@ -320,12 +341,31 @@ export default function OfferManagement() {
               </select>
             </label>
             <label className="text-xs font-semibold text-slate-600">
+              Weclapp-Kategorie
+              <select
+                value={categoryFilter}
+                onChange={(event) => {
+                  setCategoryFilter(event.target.value);
+                  setPage(1);
+                }}
+                className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 text-sm font-normal text-slate-900"
+              >
+                <option value="all">Alle Kategorien</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs font-semibold text-slate-600">
               Verkaufskanal
               <select
                 value={channelFilter}
-                onChange={(event) =>
-                  setChannelFilter(event.target.value as ChannelFilter)
-                }
+                onChange={(event) => {
+                  setChannelFilter(event.target.value as ChannelFilter);
+                  setPage(1);
+                }}
                 className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 text-sm font-normal text-slate-900"
               >
                 <option value="all">Alle Kanäle</option>
@@ -339,16 +379,21 @@ export default function OfferManagement() {
               <input
                 type="checkbox"
                 checked={onlyComplete}
-                onChange={(event) => setOnlyComplete(event.target.checked)}
+                onChange={(event) => {
+                  setOnlyComplete(event.target.checked);
+                  setPage(1);
+                }}
               />
               Nur vollständige Grunddaten
             </label>
           </div>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500">
-            <span>{visible.length} von {candidates.length} Artikeln auf dieser Seite</span>
+            <span>
+              {visible.length} von {candidates.length} vollständig geladenen Artikeln
+            </span>
             <button
               type="button"
-              onClick={() => load(page)}
+              onClick={() => load()}
               disabled={busy}
               className="rounded-lg border px-3 py-1.5 font-semibold text-slate-700 disabled:opacity-40"
             >
@@ -379,7 +424,7 @@ export default function OfferManagement() {
                   </td>
                 </tr>
               ) : (
-                visible.map((candidate) => {
+                pageCandidates.map((candidate) => {
                   const shopwareDraft = shopwareByArticle.get(candidate.articleId);
                   const ebayDraft = ebayByArticle.get(candidate.articleId);
                   const kleinanzeigen =
@@ -420,6 +465,9 @@ export default function OfferManagement() {
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
                           {candidate.articleNumber}
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-slate-500">
+                          {candidate.articleCategoryName || "Ohne Weclapp-Kategorie"}
                         </p>
                         <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
                           candidate.active !== false
@@ -487,17 +535,17 @@ export default function OfferManagement() {
         <div className="flex items-center justify-end gap-2 border-t p-4">
           <button
             type="button"
-            onClick={() => load(page - 1)}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
             disabled={page <= 1 || busy}
             className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
           >
             Zurück
           </button>
-          <span className="text-sm">Seite {page}</span>
+          <span className="text-sm">Seite {page} von {pageCount}</span>
           <button
             type="button"
-            onClick={() => load(page + 1)}
-            disabled={!hasMore || busy}
+            onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+            disabled={page >= pageCount || busy}
             className="rounded-lg border px-3 py-2 text-sm disabled:opacity-40"
           >
             Weiter

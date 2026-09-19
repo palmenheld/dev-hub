@@ -1,5 +1,6 @@
 import {
   getArticle,
+  getArticleCategoryMap,
   getArticles,
   getPriceMap,
   getShopwarePriceMap,
@@ -39,6 +40,66 @@ async function loadDetailedArticles(limit: number, page = 1) {
   }
 
   return details;
+}
+
+async function loadAllDetailedArticles() {
+  const articles: WeclappArticle[] = [];
+  const pageSize = 100;
+  for (let page = 1; page <= 100; page += 1) {
+    const pageArticles = await loadDetailedArticles(pageSize, page);
+    articles.push(...pageArticles);
+    if (pageArticles.length < pageSize) break;
+  }
+  return articles;
+}
+
+async function existingProductNumbers(articleNumbers: string[]) {
+  const result = new Set<string>();
+  for (let index = 0; index < articleNumbers.length; index += 100) {
+    const found = await getExistingProductNumbers(
+      articleNumbers.slice(index, index + 100)
+    );
+    found.forEach((articleNumber) => result.add(articleNumber));
+  }
+  return result;
+}
+
+async function categoryNames() {
+  try {
+    return await getArticleCategoryMap();
+  } catch {
+    return new Map<string, string>();
+  }
+}
+
+async function mapArticles(
+  articles: WeclappArticle[],
+  suppliedFieldMap?: WeclappFieldMap
+) {
+  const [prices, fieldMap, categories] = await Promise.all([
+    getShopwarePriceMap(),
+    suppliedFieldMap ? Promise.resolve(suppliedFieldMap) : getFieldMap(),
+    categoryNames(),
+  ]);
+  const articleNumbers = articles
+    .map((article) => String(article.articleNumber ?? "").trim())
+    .filter(Boolean);
+  const existing = await existingProductNumbers(articleNumbers);
+
+  return articles.map((article) => {
+    const articleNumber = String(article.articleNumber ?? "").trim();
+    const categoryId = String(article.articleCategoryId ?? "").trim();
+    const resolvedPrice = prices.get(article.id);
+    return mapCandidate(
+      article,
+      resolvedPrice?.price,
+      fieldMap,
+      existing.has(articleNumber),
+      resolvedPrice?.salesChannel,
+      resolvedPrice?.fallback,
+      categories.get(categoryId)
+    );
+  });
 }
 
 export function getResearchConfiguration() {
@@ -84,35 +145,23 @@ export async function getProductCandidates(
   page = 1
 ): Promise<ProductCandidate[]> {
   const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
-  const [articles, prices, fieldMap] = await Promise.all([
-    loadDetailedArticles(safeLimit, Math.max(1, Math.floor(page))),
-    getShopwarePriceMap(),
-    suppliedFieldMap ? Promise.resolve(suppliedFieldMap) : getFieldMap(),
-  ]);
-  const articleNumbers = articles
-    .map((article) => String(article.articleNumber ?? "").trim())
-    .filter(Boolean);
-  const existing = await getExistingProductNumbers(articleNumbers);
+  const articles = await loadDetailedArticles(
+    safeLimit,
+    Math.max(1, Math.floor(page))
+  );
+  return mapArticles(articles, suppliedFieldMap);
+}
 
-  return articles.map((article) => {
-    const articleNumber = String(article.articleNumber ?? "").trim();
-    const resolvedPrice = prices.get(article.id);
-    return mapCandidate(
-      article,
-      resolvedPrice?.price,
-      fieldMap,
-      existing.has(articleNumber),
-      resolvedPrice?.salesChannel,
-      resolvedPrice?.fallback
-    );
-  });
+export async function getAllProductCandidates() {
+  return mapArticles(await loadAllDetailedArticles());
 }
 
 export async function getProductCandidate(articleId: string) {
-  const [article, prices, fieldMap] = await Promise.all([
+  const [article, prices, fieldMap, categories] = await Promise.all([
     getArticle(articleId),
     getShopwarePriceMap(),
     getFieldMap(),
+    categoryNames(),
   ]);
   const articleNumber = String(article.articleNumber ?? "").trim();
   const existing = await getExistingProductNumbers(
@@ -125,7 +174,8 @@ export async function getProductCandidate(articleId: string) {
     fieldMap,
     existing.has(articleNumber),
     resolvedPrice?.salesChannel,
-    resolvedPrice?.fallback
+    resolvedPrice?.fallback,
+    categories.get(String(article.articleCategoryId ?? "").trim())
   );
 }
 export async function getProductCandidatesByIds(
@@ -137,10 +187,11 @@ export async function getProductCandidatesByIds(
     .slice(0, 100);
   if (!ids.length) return [];
 
-  const [articles, prices, fieldMap] = await Promise.all([
+  const [articles, prices, fieldMap, categories] = await Promise.all([
     Promise.all(ids.map((id) => getArticle(id))),
     getPriceMap(priceChannel),
     getFieldMap(),
+    categoryNames(),
   ]);
   const articleNumbers = articles
     .map((article) => String(article.articleNumber ?? "").trim())
@@ -155,7 +206,8 @@ export async function getProductCandidatesByIds(
       fieldMap,
       existing.has(articleNumber),
       priceChannel,
-      false
+      false,
+      categories.get(String(article.articleCategoryId ?? "").trim())
     );
   });
 }

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getProductCandidates } from "@/services/shopware/publishingCandidates";
+import {
+  getAllProductCandidates,
+  getProductCandidates,
+} from "@/services/shopware/publishingCandidates";
+
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   try {
@@ -12,12 +17,20 @@ export async function GET(request: Request) {
     const page = Number.isFinite(requestedPage)
       ? Math.max(1, Math.floor(requestedPage))
       : 1;
-    const candidates = await getProductCandidates(limit, undefined, page);
+    const loadAll = ["1", "true"].includes(
+      url.searchParams.get("all") || ""
+    );
+    const candidates = loadAll
+      ? await getAllProductCandidates()
+      : await getProductCandidates(limit, undefined, page);
     return NextResponse.json({
       candidates,
       eligible: candidates.filter((candidate) => candidate.eligible).length,
-      page,
-      hasMore: candidates.length >= Math.min(100, Math.max(1, limit)),
+      page: loadAll ? 1 : page,
+      hasMore:
+        !loadAll &&
+        candidates.length >= Math.min(100, Math.max(1, limit)),
+      total: candidates.length,
     });
   } catch (error) {
     return NextResponse.json(

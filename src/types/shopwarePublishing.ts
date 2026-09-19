@@ -26,6 +26,8 @@ export type ProductCandidate = {
   articleNumber: string;
   germanName: string;
   latinName: string;
+  articleCategoryId?: string;
+  articleCategoryName?: string;
   active: boolean;
   heightCm?: number;
   heightMinCm?: number;
