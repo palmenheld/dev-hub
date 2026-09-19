@@ -50,8 +50,12 @@ function draftStatusLabel(draft: ShopwareProductDraft) {
 
 export default function ShopwareProductCreator({
   enabled,
+  initialArticleId = "",
+  createArticleOnOpen = false,
 }: {
   enabled: boolean;
+  initialArticleId?: string;
+  createArticleOnOpen?: boolean;
 }) {
   const [setup, setSetup] = useState<PublishingSetup | null>(null);
   const [fieldMap, setFieldMap] = useState<WeclappFieldMap | null>(null);
@@ -115,9 +119,50 @@ export default function ShopwareProductCreator({
             payload.error || "Gespeicherte Entwürfe konnten nicht geladen werden."
           );
         }
+        let loadedDrafts = payload.drafts;
+        let directDraft =
+          loadedDrafts.find(
+            (item) => item.source.articleId === initialArticleId
+          ) ?? null;
+        if (
+          initialArticleId &&
+          createArticleOnOpen &&
+          !directDraft &&
+          /^\d+$/.test(initialArticleId)
+        ) {
+          const createResponse = await fetch("/api/channels/shopware/drafts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ articleId: initialArticleId }),
+          });
+          const createPayload = (await createResponse.json()) as {
+            draft?: ShopwareProductDraft;
+            error?: string;
+          };
+          if (!createResponse.ok || !createPayload.draft) {
+            throw new Error(
+              createPayload.error || "Shopware-Entwurf konnte nicht erstellt werden."
+            );
+          }
+          directDraft = createPayload.draft;
+          loadedDrafts = [
+            directDraft,
+            ...loadedDrafts.filter(
+              (item) => item.source.articleId !== directDraft?.source.articleId
+            ),
+          ];
+        }
         if (!cancelled) {
-          setDrafts(payload.drafts);
-          setDraft(payload.drafts[0] ?? null);
+          setDrafts(loadedDrafts);
+          setDraft(directDraft ?? loadedDrafts[0] ?? null);
+          if (directDraft) {
+            setFeedback({
+              kind: "success",
+              message: createArticleOnOpen
+                ? "Der Shopware-Entwurf für den gewählten Artikel wurde vorbereitet."
+                : "Der vorhandene Shopware-Entwurf wurde geöffnet.",
+            });
+          }
         }
       } catch (error) {
         if (!cancelled) {
@@ -133,7 +178,7 @@ export default function ShopwareProductCreator({
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [createArticleOnOpen, enabled, initialArticleId]);
 
   function rememberDraft(nextDraft: ShopwareProductDraft) {
     setDraft(nextDraft);

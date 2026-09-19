@@ -27,13 +27,21 @@ function formatDate(value?: string) {
 
 export default function ShopwareModule({
   initialConnection,
+  settingsOnly = false,
+  initialArticleId = "",
+  createArticleOnOpen = false,
+  initialQuery = "",
 }: {
   initialConnection: ShopwareConnection;
+  settingsOnly?: boolean;
+  initialArticleId?: string;
+  createArticleOnOpen?: boolean;
+  initialQuery?: string;
 }) {
   const [connection, setConnection] = useState(initialConnection);
   const [products, setProducts] = useState<ShopwareProduct[]>([]);
   const [total, setTotal] = useState(0);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">(
     "all"
   );
@@ -111,7 +119,7 @@ export default function ShopwareModule({
         kind: "success",
         message: "Verbindung hergestellt. Die ersten Produkte werden geladen.",
       });
-      await loadProducts("");
+      await loadProducts(query);
     } catch (error) {
       setFeedback({
         kind: "error",
@@ -147,7 +155,7 @@ export default function ShopwareModule({
 
   return (
     <div className="mx-auto max-w-[1600px]">
-      <header>
+      {!settingsOnly && <header>
         <p className="text-sm font-semibold uppercase tracking-wide text-[var(--ph-gold)]">
           Verkaufskanal
         </p>
@@ -156,7 +164,7 @@ export default function ShopwareModule({
           Einen oder mehrere Weclapp-Artikel auswählen, mit aktuellen KI-Inhalten
           anreichern, einzeln prüfen und kontrolliert in Shopware anlegen.
         </p>
-      </header>
+      </header>}
 
       <section className={`mt-6 rounded-2xl border p-5 ${connectionClasses}`}>
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
@@ -238,9 +246,15 @@ export default function ShopwareModule({
         </div>
       )}
 
-      <ShopwareProductCreator enabled={connection.state === "connected"} />
+      {!settingsOnly && (
+        <ShopwareProductCreator
+          enabled={connection.state === "connected"}
+          initialArticleId={initialArticleId}
+          createArticleOnOpen={createArticleOnOpen}
+        />
+      )}
 
-      <section className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className={settingsOnly ? "hidden" : "mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4"}>
         {(
           [
             ["Produkte im Shop", total, "text-[var(--ph-green-dark)]"],
@@ -258,7 +272,7 @@ export default function ShopwareModule({
         ))}
       </section>
 
-      <section className="mt-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <section className={settingsOnly ? "hidden" : "mt-5 overflow-hidden rounded-2xl border bg-white shadow-sm"}>
         <form
           onSubmit={submitSearch}
           className="grid gap-3 border-b p-4 md:grid-cols-[1fr_220px_auto]"

@@ -137,12 +137,14 @@ export default function EbayModule({
   initialFeedback = null,
   detailOnly = false,
   initialArticleId = "",
+  settingsOnly = false,
 }: {
   initialConnection: EbayConnection;
   initialSettings: EbayPublishingSettings;
   initialFeedback?: Feedback | null;
   detailOnly?: boolean;
   initialArticleId?: string;
+  settingsOnly?: boolean;
 }) {
   const [connection, setConnection] = useState(initialConnection);
   const [setup, setSetup] = useState<EbaySetup | null>(null);
@@ -1091,7 +1093,7 @@ export default function EbayModule({
 
   return (
     <div className="mx-auto max-w-[1600px]">
-      <header>
+      {!settingsOnly && <header>
         <p className="text-sm font-semibold uppercase tracking-wide text-[var(--ph-gold)]">
           Verkaufskanal
         </p>
@@ -1102,10 +1104,10 @@ export default function EbayModule({
           {detailOnly && (
             <div className="flex flex-wrap gap-2">
               <Link
-                href="/channels/ebay"
+                href="/offers"
                 className="rounded-xl border border-[var(--ph-green-dark)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ph-green-dark)]"
               >
-                Zur Artikelübersicht
+                Zur Angebotsverwaltung
               </Link>
               <Link
                 href="/channels/ebay/templates"
@@ -1121,7 +1123,7 @@ export default function EbayModule({
           eBay-Kategorie und Pflichtmerkmale prüfen und erst nach deiner
           ausdrücklichen Freigabe veröffentlichen.
         </p>
-      </header>
+      </header>}
 
       <section className={`${detailOnly ? "hidden" : "mt-6"} rounded-2xl border p-5 ${connectionColor}`}>
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
@@ -1512,7 +1514,7 @@ export default function EbayModule({
         </section>
       )}
 
-      <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm">
+      <section className={settingsOnly ? "hidden" : "mt-5 rounded-2xl border bg-white p-5 shadow-sm"}>
         <div className={detailOnly ? "hidden" : "flex flex-col justify-between gap-2 lg:flex-row lg:items-start"}>
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[var(--ph-gold)]">
@@ -1674,7 +1676,7 @@ export default function EbayModule({
         </details>
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-2xl border bg-white shadow-sm">
+      <section className={settingsOnly ? "hidden" : "mt-6 overflow-hidden rounded-2xl border bg-white shadow-sm"}>
         <div className={detailOnly ? "hidden" : "border-b bg-[var(--ph-green-light)] p-5"}>
           <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
             <div>

@@ -87,19 +87,44 @@ export default function KleinanzeigenModule({
   initialListings,
   connection,
   articleOptions,
+  initialArticleId = "",
 }: {
   initialListings: KleinanzeigenListing[];
   connection: KleinanzeigenConnection;
   articleOptions: ArticleOption[];
+  initialArticleId?: string;
 }) {
+  const initialArticle = articleOptions.find(
+    (option) => option.id === initialArticleId
+  );
+  const initialListing = initialListings.find(
+    (listing) =>
+      listing.articleId === initialArticleId ||
+      (initialArticle && listing.sku === initialArticle.sku)
+  );
+  const initialForm: ListingForm = initialArticle
+    ? {
+        ...emptyForm,
+        articleId: initialArticle.id,
+        sku: initialArticle.sku,
+        title: initialArticle.name,
+        description: initialArticle.description,
+        price: initialArticle.price.toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        }),
+      }
+    : emptyForm;
   const [listings, setListings] = useState(initialListings);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialListing?.sku || "");
   const [statusFilter, setStatusFilter] = useState<
     KleinanzeigenListingStatus | "all"
   >("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [formOpen, setFormOpen] = useState(false);
-  const [form, setForm] = useState<ListingForm>(emptyForm);
+  const [formOpen, setFormOpen] = useState(
+    Boolean(initialArticleId && !initialListing)
+  );
+  const [form, setForm] = useState<ListingForm>(initialForm);
   const [savingDraft, setSavingDraft] = useState(false);
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
   const [feedback, setFeedback] = useState<Feedback | null>(null);

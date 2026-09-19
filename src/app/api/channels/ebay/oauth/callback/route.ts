@@ -25,11 +25,13 @@ export async function GET(request: Request) {
       throw new Error("eBay hat keinen vollständigen Anmeldecode zurückgegeben.");
     }
     returnOrigin = await finishEbayAuthorization({ code, state });
-    const target = new URL("/channels/ebay", returnOrigin);
+    const target = new URL("/connection-settings", returnOrigin);
+    target.searchParams.set("tab", "ebay");
     target.searchParams.set("ebayConnected", "1");
     return NextResponse.redirect(target);
   } catch (error) {
-    const target = new URL("/channels/ebay", returnOrigin);
+    const target = new URL("/connection-settings", returnOrigin);
+    target.searchParams.set("tab", "ebay");
     target.searchParams.set(
       "ebayError",
       safeMessage(error instanceof Error ? error.message : "Unbekannter Fehler")

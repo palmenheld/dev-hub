@@ -73,10 +73,10 @@ export default function EbayTemplateList() {
           </p>
         </div>
         <Link
-          href="/channels/ebay"
+          href="/offers"
           className="rounded-xl border border-[var(--ph-green-dark)] bg-white px-4 py-2.5 text-center font-semibold text-[var(--ph-green-dark)]"
         >
-          Zur Artikelübersicht
+          Zur Angebotsverwaltung
         </Link>
       </header>
 

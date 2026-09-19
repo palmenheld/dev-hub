@@ -8,7 +8,16 @@ import {
 export const dynamic = "force-dynamic";
 
 
-export default async function KleinanzeigenPage() {
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function KleinanzeigenPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const parameters = await searchParams;
   const [listings, articles] = await Promise.all([
     getKleinanzeigenListings(),
     getAllArticles().catch((error) => {
@@ -22,6 +31,7 @@ export default async function KleinanzeigenPage() {
       <KleinanzeigenModule
         initialListings={listings}
         connection={getKleinanzeigenConnection()}
+        initialArticleId={first(parameters.articleId)?.trim() || ""}
         articleOptions={articles.map((article) => ({
           id: article.id,
           sku: article.sku,
