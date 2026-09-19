@@ -104,7 +104,7 @@ export default function OfferManagement() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("active");
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [channelFilter, setChannelFilter] = useState<ChannelFilter>("all");
   const [onlyComplete, setOnlyComplete] = useState(false);
   const [busy, setBusy] = useState(true);

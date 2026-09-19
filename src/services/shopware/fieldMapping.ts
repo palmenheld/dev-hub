@@ -177,9 +177,10 @@ export function readSelector(
 
 function textValue(value: unknown): string {
   if (typeof value === "string") return value.trim();
-  if (typeof value === "number" || typeof value === "boolean") {
+  if (typeof value === "number") {
     return String(value);
   }
+  if (typeof value === "boolean") return "";
   if (Array.isArray(value)) {
     return value.map(textValue).filter(Boolean).join(", ");
   }
