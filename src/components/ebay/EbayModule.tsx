@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { renderEbayDescription } from "@/services/ebay/description";
 import { emptyJsonPost } from "@/lib/http";
 import type {
   EbayAspect,
@@ -912,12 +913,19 @@ export default function EbayModule({
       | "sync"
       | "pause"
       | "reactivate"
+      | "sanitize-copy"
   ) {
     if (!active) return;
     if (
       action === "regenerate" &&
       !window.confirm(
         "Titel und Beschreibung werden neu recherchiert und ersetzt. Kategorie, Merkmale, Preis und Bestand bleiben erhalten. Fortfahren?"
+      )
+    ) return;
+    if (
+      action === "sanitize-copy" &&
+      !window.confirm(
+        "Das Palmenheld-Design wird jetzt direkt auf das aktive eBay-Angebot übertragen. Fortfahren?"
       )
     ) return;
     if (
@@ -949,7 +957,8 @@ export default function EbayModule({
       action === "resume" ||
       action === "discard" ||
       action === "pause" ||
-      action === "reactivate";
+      action === "reactivate" ||
+      action === "sanitize-copy";
     const publishKey = protectedAction
       ? window.prompt("Bitte den privaten eBay-Sicherheitscode eingeben:")
       : "";
@@ -1001,7 +1010,9 @@ export default function EbayModule({
       setFeedback({
         kind: "success",
         message:
-          action === "approve"
+          action === "sanitize-copy"
+            ? "Das Palmenheld-Design wurde auf das aktive eBay-Angebot übertragen."
+            : action === "approve"
               ? "Entwurf ausdrücklich freigegeben."
               : action === "publish" || action === "resume"
                 ? "Die Anzeige wurde bei eBay veröffentlicht."
@@ -2528,6 +2539,27 @@ export default function EbayModule({
               <summary className="cursor-pointer font-bold">
                 KI-Beschreibung ansehen und korrigieren
               </summary>
+              {form.generatedCopy && activeIsEditable && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      descriptionHtml: renderEbayDescription(
+                        form.generatedCopy!,
+                        form.source,
+                        form.research
+                      ),
+                      approvedAt: undefined,
+                    })
+                  }
+                  disabled={form.descriptionHtml.includes('data-palmenheld-design="v1"')}
+                  className="mt-3 rounded-xl border border-[var(--ph-green)] bg-[var(--ph-green-light)] px-3 py-2 text-sm font-bold text-[var(--ph-green-dark)] disabled:opacity-40"
+                >
+                  Palmenheld-Design anwenden
+                </button>
+              )}
+
               <textarea
                 rows={18}
                 value={form.descriptionHtml}
@@ -2540,6 +2572,18 @@ export default function EbayModule({
                 }
                 className="mt-3 block w-full rounded-xl border px-3 py-2.5 font-mono text-sm"
               />
+              <div className="mt-4 rounded-xl border bg-slate-50 p-3">
+                <p className="mb-2 text-sm font-bold text-[var(--ph-green-dark)]">
+                  Vorschau der eBay-Beschreibung
+                </p>
+                <iframe
+                  title="Vorschau der eBay-Beschreibung"
+                  sandbox=""
+                  referrerPolicy="no-referrer"
+                  srcDoc={form.descriptionHtml}
+                  className="h-[720px] w-full rounded-lg border bg-white"
+                />
+              </div>
             </details>
             </fieldset>
 
@@ -2705,6 +2749,18 @@ export default function EbayModule({
                     className="rounded-xl border px-4 py-2.5 font-semibold disabled:opacity-40"
                   >
                     {busy === "sync" ? "Status wird abgeglichen…" : "Status abgleichen"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => act("sanitize-copy")}
+                    disabled={
+                      Boolean(busy) ||
+                      !connection.publishReady ||
+                      !active.generatedCopy
+                    }
+                    className="rounded-xl border border-[var(--ph-green)] bg-[var(--ph-green-light)] px-4 py-2.5 font-semibold text-[var(--ph-green-dark)] disabled:opacity-40"
+                  >
+                    {busy === "sanitize-copy" ? "Design wird übertragen…" : "Palmenheld-Design live anwenden"}
                   </button>
                   <button
                     type="button"

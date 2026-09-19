@@ -13,6 +13,10 @@ import { validateDraft as validateResearch } from "@/services/shopware/drafts";
 import { researchProduct } from "@/services/shopware/research";
 import { RESEARCH_POLICY_VERSION } from "@/services/shopware/researchCache";
 import { containsInternalQualityLanguage } from "@/services/shopware/customerText";
+import {
+  descriptionWithoutTrustedAssets,
+  renderEbayDescription,
+} from "./description";
 import { withEbayMutationLock } from "./lock";
 import { generateEbayCopy, generatedEbayAspects } from "./copy";
 import { getEbayCandidate } from "./candidates";
@@ -30,46 +34,14 @@ import {
   saveEbayDraft,
 } from "./store";
 
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function renderEbayDescription(
-  copy: EbayGeneratedCopy,
-  candidate: ProductCandidate,
-  research: EbayListingDraft["research"]
-) {
-  const facts = [
-    `<li><strong>Deutscher Name:</strong> ${escapeHtml(research.confirmedGermanName)}</li>`,
-    `<li><strong>Botanischer Name:</strong> <em>${escapeHtml(research.confirmedLatinName)}</em></li>`,
-    candidate.heightLabel
-      ? `<li><strong>Verkaufsgröße:</strong> ${escapeHtml(candidate.heightLabel)}</li>`
-      : "",
-    candidate.potSize
-      ? `<li><strong>Topfgröße:</strong> ${escapeHtml(candidate.potSize)}</li>`
-      : "",
-  ]
-    .filter(Boolean)
-    .join("");
-  const sellingPoints = copy.sellingPoints
-    .map((point) => `<li>${escapeHtml(point)}</li>`)
-    .join("");
-
-  return `<p><strong>${escapeHtml(copy.intro)}</strong></p><h2>Das erhalten Sie</h2><ul>${facts}</ul><h2>Besonderheiten</h2><ul>${sellingPoints}</ul><h2>Erscheinungsbild und Wuchs</h2><p>${escapeHtml(copy.appearance)}</p><h2>Standort</h2><p>${escapeHtml(copy.location)}</p><h2>Pflege</h2><p>${escapeHtml(copy.care)}</p><h2>Überwinterung</h2><p>${escapeHtml(copy.winter)}</p><p><small>Pflanzen sind Naturprodukte. Wuchsform, Blattzahl und Erscheinungsbild können innerhalb der Art und je nach Saison von den Abbildungen abweichen. Größen- und Temperaturangaben sind Richtwerte; Standort, Wind, Feuchtigkeit, Wurzelraum und Kübelhaltung beeinflussen die Pflanze.</small></p>`;
-}
-
 function validateDescriptionHtml(value: string) {
   if (/<\s*(script|iframe|form|object|embed|style)\b|\son\w+\s*=|javascript:/i.test(value)) {
     throw new Error("Die Beschreibung enthält nicht erlaubte aktive HTML-Inhalte.");
   }
+  const descriptionForPolicyCheck = descriptionWithoutTrustedAssets(value);
   if (
     /<\s*a\b|https?:\/\/|www\.|\b[a-z0-9-]+\.(?:de|com|org|net)\b|\S+@\S+/i.test(
-      value
+      descriptionForPolicyCheck
     )
   ) {
     throw new Error(
@@ -335,9 +307,12 @@ export function validateEbayDraft(
       `Der eBay-Titel nutzt nur ${draft.title.length} von 80 möglichen Zeichen.`
     );
   }
+  const descriptionForPolicyCheck = descriptionWithoutTrustedAssets(
+    draft.descriptionHtml
+  );
   if (
     /<\s*(script|iframe|form|object|embed|style|a)\b|\son\w+\s*=|javascript:|https?:\/\/|www\.|\b[a-z0-9-]+\.(?:de|com|org|net)\b|\S+@\S+/i.test(
-      draft.descriptionHtml
+      descriptionForPolicyCheck
     )
   ) {
     errors.push(

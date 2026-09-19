@@ -5,6 +5,7 @@ import {
   customerSafePlantText,
 } from "@/services/shopware/customerText";
 import { preferredGermanCommonName } from "@/services/shopware/plantNames";
+import { renderEbayDescription } from "./description";
 import { withEbayMutationLock } from "./lock";
 import { getEbayCandidate } from "./candidates";
 import { ebayFormDataRequest, ebayRequest } from "./client";
@@ -918,7 +919,16 @@ async function sanitizePublishedCustomerCopyUnlocked(id: string) {
   };
   const title = replaceCustomerName(customerSafePlantText(draft.title));
   const descriptionHtml = replaceCustomerName(
-    customerSafePlantHtml(draft.descriptionHtml)
+    draft.generatedCopy
+      ? renderEbayDescription(
+          draft.generatedCopy,
+          draft.source,
+          {
+            ...draft.research,
+            confirmedGermanName: preferredName,
+          }
+        )
+      : customerSafePlantHtml(draft.descriptionHtml)
   );
   if (
     title === draft.title &&
