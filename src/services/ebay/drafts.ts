@@ -784,7 +784,14 @@ async function regenerateCopyUnlocked(id: string) {
       `Der Artikel ist nicht mehr vollständig: ${candidate.missing.join(", ")}.`
     );
   }
-  const { research, sources } = await researchProduct(candidate);
+  const identityChanged =
+    candidate.latinName.trim().toLocaleLowerCase("de-DE") !==
+      draft.source.latinName.trim().toLocaleLowerCase("de-DE") ||
+    candidate.germanName.trim().toLocaleLowerCase("de-DE") !==
+      draft.source.germanName.trim().toLocaleLowerCase("de-DE");
+  const { research, sources } = identityChanged
+    ? await researchProduct(candidate)
+    : { research: draft.research, sources: draft.sources };
   const generatedCopy = await generateEbayCopy(candidate, research, sources);
   const generatedAspects = generatedEbayAspects(generatedCopy, research);
   const researchValidation = validateResearch(research, sources);

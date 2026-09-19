@@ -7,7 +7,7 @@ import {
 } from "@/types/shopwarePublishing";
 import { getProductCandidate } from "./publishingCandidates";
 import { parseHeightRange, parsePotDiameter } from "./fieldMapping";
-import { researchProduct } from "./research";
+import { isAllowedResearchSource, researchProduct } from "./research";
 import { getDraft, listDrafts, saveDraft } from "./dataStore";
 import { withMutationLock } from "./mutationLock";
 import { customerSafePlantText } from "./customerText";
@@ -83,6 +83,23 @@ export function validateDraft(
   if (!research.researchComplete) {
     warnings.push(
       `Die Recherche meldet offene Punkte: ${research.gaps.join("; ") || "nicht näher bezeichnet"}.`
+    );
+  }
+  const citedIds = new Set([
+    ...research.blocks.flatMap((block) => block.sourceIds),
+    ...research.care.light.sourceIds,
+    ...research.care.water.sourceIds,
+    ...research.care.fertilizer.sourceIds,
+    ...research.care.winter.sourceIds,
+  ]);
+  const disallowedSources = sources.filter(
+    (source) => citedIds.has(source.id) && !isAllowedResearchSource(source)
+  );
+  if (disallowedSources.length) {
+    errors.push(
+      `Nicht zugelassene Quellen wurden zitiert: ${disallowedSources
+        .map((source) => source.domain)
+        .join(", ")}.`
     );
   }
   for (const key of REQUIRED_BLOCKS) {

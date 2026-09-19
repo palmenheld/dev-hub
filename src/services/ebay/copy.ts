@@ -432,6 +432,7 @@ export async function generateEbayCopy(
   const response = await openAIResponse({
     model,
     store: false,
+    prompt_cache_key: "palmenheld-ebay-copy-v4",
     reasoning: { effort: "low" },
     input: [
       {
@@ -458,7 +459,7 @@ REGELN:
 - appearance: Aussehen und Wuchs sachlich beschreiben.
 - location: passenden Standort klar erklären.
 - care: Wasser und Düngung praktisch erklären.
-- winter: Winterhärte, konservative Minimaltemperatur ${research.minTemperatureC} °C, Freiland/Kübel und Richtwertcharakter nennen.
+- winter: Winterhärte mit dem praxisnah belegten zentralen Temperatur-Richtwert ${research.minTemperatureC} °C nennen. Die belegte Spanne, Freiland/Kübel und den Richtwertcharakter verständlich erklären. Den Wert nicht durch eine pauschal wärmere, übervorsichtige Angabe abschwächen.
 - Insgesamt ungefähr 250–450 Wörter. Kaufentscheidende Artikeldaten innerhalb der ersten etwa 800 Zeichen.
 - searchTerms: vier bis zwölf passende Begriffe nur zur internen Qualitätsprüfung.
 - itemSpecifics.commonName: exakt den bestätigten, in Deutschland gebräuchlichsten Trivial- und Verkaufsnamen angeben. Seltenere fachsprachliche Synonyme nicht bevorzugen und niemals den botanischen/lateinischen Namen wiederholen. Beispiele: Strelitzia reginae → Paradiesvogelblume; Olea europaea → Olivenbaum, nicht Echter Ölbaum.
@@ -478,6 +479,7 @@ ${JSON.stringify(sourceSummary)}`,
       },
     ],
     text: {
+      verbosity: "low",
       format: {
         type: "json_schema",
         name: "palmenheld_ebay_copy",
