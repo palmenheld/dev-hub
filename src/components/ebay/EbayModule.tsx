@@ -279,7 +279,9 @@ export default function EbayModule({
               kind: "success",
               message: directWasExisting
                 ? `Der vorhandene eBay-Entwurf für ${directDraft.source.articleNumber} wurde geöffnet.`
-                : `Der eBay-Entwurf für ${directDraft.source.articleNumber} wurde aus Weclapp erstellt${directDraft.templateName ? ` und mit „${directDraft.templateName}“ vorbelegt` : ""}.`,
+                : directDraft.contentReuse
+                  ? `Der eBay-Entwurf für ${directDraft.source.articleNumber} wurde ohne neue KI-Berechnung aus SKU ${directDraft.contentReuse.sourceArticleNumber} übernommen. Größe, Topf, Preis, Bestand und Bilder stammen aus dem neuen Weclapp-Artikel.`
+                  : `Der eBay-Entwurf für ${directDraft.source.articleNumber} wurde aus Weclapp erstellt${directDraft.templateName ? ` und mit „${directDraft.templateName}“ vorbelegt` : ""}.`,
             });
           }
           setBusy("");
@@ -1904,6 +1906,11 @@ export default function EbayModule({
                 {form.templateName && (
                   <p className="mt-1 text-xs font-semibold text-blue-700">
                     Erstellt mit Template: {form.templateName}
+                  </p>
+                )}
+                {form.contentReuse && (
+                  <p className="mt-1 text-xs font-semibold text-[var(--ph-green)]">
+                    Pflanzeninhalt übernommen aus SKU {form.contentReuse.sourceArticleNumber}
                   </p>
                 )}
               </div>

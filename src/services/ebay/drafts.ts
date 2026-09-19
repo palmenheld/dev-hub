@@ -66,6 +66,81 @@ function compactTitle(candidate: ProductCandidate, germanName: string) {
     ? shortened.slice(0, shortened.lastIndexOf(" ")).trim()
     : shortened;
 }
+function normalizedLatinName(value: string) {
+  return value
+    .normalize("NFKC")
+    .replace(/[‘’]/g, "'")
+    .replace(/×/g, "x")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase("de-DE");
+}
+
+function truncateEbayTitle(value: string) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= 80) return normalized;
+  const shortened = normalized.slice(0, 80);
+  return shortened.includes(" ")
+    ? shortened.slice(0, shortened.lastIndexOf(" ")).trim()
+    : shortened;
+}
+
+function adaptGeneratedCopy(
+  copy: EbayGeneratedCopy,
+  candidate: ProductCandidate,
+  research: EbayListingDraft["research"]
+): EbayGeneratedCopy {
+  const germanName = research.confirmedGermanName || candidate.germanName;
+  const latinName = research.confirmedLatinName || candidate.latinName;
+  const titleParts = [
+    germanName,
+    normalizedLatinName(germanName) === normalizedLatinName(latinName)
+      ? ""
+      : latinName,
+    candidate.heightLabel,
+    candidate.potSize ? `Topf ${candidate.potSize}` : "",
+  ].filter(Boolean);
+  const specifications = [
+    candidate.heightLabel
+      ? `in der Verkaufsgröße ${candidate.heightLabel}`
+      : "",
+    candidate.potSize ? `im Topf ${candidate.potSize}` : "",
+  ].filter(Boolean);
+
+  return {
+    ...structuredClone(copy),
+    title: truncateEbayTitle(titleParts.join(" ")),
+    intro: `Angeboten wird ein Exemplar von ${germanName} (${latinName})${specifications.length ? ` ${specifications.join(" ")}` : ""}.`,
+  };
+}
+
+function findReusablePlantDraft(
+  drafts: EbayListingDraft[],
+  candidate: ProductCandidate
+) {
+  const wantedLatinName = normalizedLatinName(candidate.latinName);
+  if (!wantedLatinName) return undefined;
+
+  return drafts.find((draft) => {
+    if (
+      draft.source.articleId === candidate.articleId ||
+      !draft.generatedCopy ||
+      draft.researchPolicyVersion !== RESEARCH_POLICY_VERSION ||
+      !draft.researchValidation.valid
+    ) {
+      return false;
+    }
+    const matchesLatinName = [
+      draft.source.latinName,
+      draft.research.confirmedLatinName,
+    ].some((name) => normalizedLatinName(name) === wantedLatinName);
+    return (
+      matchesLatinName &&
+      validateResearch(draft.research, draft.sources).valid
+    );
+  });
+}
+
 
 const EBAY_PLANT_CATEGORY = {
   id: "19617",
@@ -492,7 +567,8 @@ async function createUnlocked(
   replaceExisting: boolean,
   templateId?: string
 ) {
-  const existing = (await listEbayDrafts()).find(
+  const savedDrafts = await listEbayDrafts();
+  const existing = savedDrafts.find(
     (item) => item.source.articleId === articleId
   );
   if (
@@ -516,8 +592,16 @@ async function createUnlocked(
   if (!candidate.eligible || !candidate.heightCm || !candidate.price) {
     throw new Error(`Der Artikel ist noch nicht bereit: ${candidate.missing.join(", ")}.`);
   }
-  const { research, sources } = await researchProduct(candidate);
-  const generatedCopy = await generateEbayCopy(candidate, research, sources);
+  const reuseSource = findReusablePlantDraft(savedDrafts, candidate);
+  const { research, sources } = reuseSource
+    ? {
+        research: structuredClone(reuseSource.research),
+        sources: structuredClone(reuseSource.sources),
+      }
+    : await researchProduct(candidate);
+  const generatedCopy = reuseSource
+    ? adaptGeneratedCopy(reuseSource.generatedCopy!, candidate, research)
+    : await generateEbayCopy(candidate, research, sources);
   const generatedAspects = generatedEbayAspects(generatedCopy, research);
   const researchValidation = validateResearch(research, sources);
   const now = new Date().toISOString();
@@ -575,6 +659,14 @@ async function createUnlocked(
     generatedCopy,
     research,
     researchPolicyVersion: RESEARCH_POLICY_VERSION,
+    contentReuse: reuseSource
+      ? {
+          sourceDraftId: reuseSource.id,
+          sourceArticleNumber: reuseSource.source.articleNumber,
+          latinName: research.confirmedLatinName || candidate.latinName,
+          reusedAt: now,
+        }
+      : undefined,
     sources,
     researchValidation,
     validation: { valid: false, errors: [], warnings: [] },
@@ -791,6 +883,7 @@ async function regenerateCopyUnlocked(id: string) {
     title: generatedCopy.title,
     descriptionHtml: renderEbayDescription(generatedCopy, candidate, research),
     generatedCopy,
+    contentReuse: undefined,
     aspects: {
       ...generatedAspects,
       ...draft.aspects,

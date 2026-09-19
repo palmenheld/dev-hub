@@ -233,6 +233,12 @@ export type EbayListingDraft = {
   generatedCopy?: EbayGeneratedCopy;
   research: ProductResearch;
   researchPolicyVersion?: string;
+  contentReuse?: {
+    sourceDraftId: string;
+    sourceArticleNumber: string;
+    latinName: string;
+    reusedAt: string;
+  };
   sources: ResearchSource[];
   researchValidation: DraftValidation;
   validation: DraftValidation;
