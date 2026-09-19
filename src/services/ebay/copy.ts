@@ -3,6 +3,10 @@ import type { EbayGeneratedCopy } from "@/types/ebay";
 import { extractOutputText, openAIResponse } from "@/services/shopware/research";
 import { getResearchConfiguration } from "@/services/shopware/publishingCandidates";
 import { preferredGermanCommonName } from "@/services/shopware/plantNames";
+import {
+  containsInternalQualityLanguage,
+  customerSafePlantText,
+} from "@/services/shopware/customerText";
 
 const EBAY_COPY_SCHEMA = {
   type: "object",
@@ -305,12 +309,14 @@ function validateGeneratedCopy(
 ) {
   if (copy.version !== "ebay-v2") throw new Error("Die eBay-Textversion ist ungültig.");
   copy.title = reliableTitle(copy.title, candidate, research);
-  copy.intro = normalizedText(copy.intro);
-  copy.appearance = normalizedText(copy.appearance);
-  copy.location = normalizedText(copy.location);
-  copy.care = normalizedText(copy.care);
-  copy.winter = normalizedText(copy.winter);
-  copy.sellingPoints = copy.sellingPoints.map(normalizedText);
+  copy.intro = customerSafePlantText(copy.intro);
+  copy.appearance = customerSafePlantText(copy.appearance);
+  copy.location = customerSafePlantText(copy.location);
+  copy.care = customerSafePlantText(copy.care);
+  copy.winter = customerSafePlantText(copy.winter);
+  copy.sellingPoints = copy.sellingPoints
+    .map(customerSafePlantText)
+    .filter(Boolean);
   if (new Set(copy.sellingPoints).size !== copy.sellingPoints.length) {
     throw new Error("Der eBay-Text enthält doppelte Verkaufspunkte.");
   }
@@ -370,6 +376,11 @@ function validateGeneratedCopy(
   assertEvidence(copy.evidence.winter, sources, "Wintertext", 3);
 
   const visibleText = [copy.title, copy.intro, ...copy.sellingPoints, copy.appearance, copy.location, copy.care, copy.winter].join(" ");
+  if (containsInternalQualityLanguage(visibleText)) {
+    throw new Error(
+      "Der automatisch erzeugte eBay-Kundentext enthält interne Prüf- oder Verifikationshinweise."
+    );
+  }
   if (/https?:\/\/|www\.|\b[a-z0-9-]+\.(?:de|com|org|net)\b|\S+@\S+/i.test(visibleText)) {
     throw new Error("Der automatisch erzeugte eBay-Text enthält eine externe Adresse oder Kontaktdaten.");
   }
@@ -382,8 +393,30 @@ function researchForPrompt(research: ProductResearch) {
     confirmedGermanName: research.confirmedGermanName,
     winterHardy: research.winterHardy,
     minTemperatureC: research.minTemperatureC,
-    blocks: research.blocks,
-    care: research.care,
+    blocks: research.blocks
+      .map((block) => ({
+        ...block,
+        text: customerSafePlantText(block.text),
+      }))
+      .filter((block) => block.text),
+    care: {
+      light: {
+        ...research.care.light,
+        text: customerSafePlantText(research.care.light.text),
+      },
+      water: {
+        ...research.care.water,
+        text: customerSafePlantText(research.care.water.text),
+      },
+      fertilizer: {
+        ...research.care.fertilizer,
+        text: customerSafePlantText(research.care.fertilizer.text),
+      },
+      winter: {
+        ...research.care.winter,
+        text: customerSafePlantText(research.care.winter.text),
+      },
+    },
   };
 }
 
@@ -403,7 +436,7 @@ export async function generateEbayCopy(
     input: [
       {
         role: "developer",
-        content: "Du bist ein präziser deutscher eBay-Redakteur für lebende Pflanzen. Schreibe einen eigenständigen, mobil gut scanbaren Verkaufstext ausschließlich aus den gelieferten Fakten. Erfinde nichts. Keine Superlative, Garantien, Heilversprechen, künstliche Verknappung, Preis- oder Versandversprechen. Keine Quellen, Quellen-IDs, URLs, Domains, E-Mail-Adressen, Telefonnummern, Emojis, fremde Marken oder Kontaktaufforderungen im Kundentext. Vermeide Keyword-Wiederholungen. Unterscheide Freiland und Kübelhaltung. Frostwerte sind Richtwerte, niemals Zusagen.",
+        content: "Du bist ein präziser deutscher eBay-Redakteur für lebende Pflanzen. Schreibe einen eigenständigen, mobil gut scanbaren Verkaufstext ausschließlich aus den gelieferten Fakten. Erfinde nichts. Keine Superlative, Garantien, Heilversprechen, künstliche Verknappung, Preis- oder Versandversprechen. Keine Quellen, Quellen-IDs, URLs, Domains, E-Mail-Adressen, Telefonnummern, Emojis, fremde Marken oder Kontaktaufforderungen im Kundentext. Vermeide Keyword-Wiederholungen. Unterscheide Freiland und Kübelhaltung. Frostwerte sind Richtwerte, niemals Zusagen. Interne Unsicherheiten, Recherchegrenzen, fehlende Nachweise, Sortenechtheits- oder Verifikationshinweise gehören ausschließlich in die interne Qualitätsprüfung und niemals in Titel, Einleitung, Verkaufspunkte oder Beschreibung. Eine Sortenbezeichnung aus den verbindlichen Weclapp-Artikeldaten wird als Angebotsmerkmal übernommen und im Kundentext nicht angezweifelt.",
       },
       {
         role: "user",
@@ -435,6 +468,7 @@ REGELN:
 - itemSpecifics.productType: exakt eine passende Produktart aus Bambus, Bäume, Bonsai, Farne, Gemüse, Kakteen & Sukkulenten, Karnivoren, Kletterpflanzen, Kräuter, Obst, Orchideen, Rosen, Sträucher & Hecken, Wasserpflanzen, Ziergräser, Zimmerpflanzen wählen.
 - evidence: Ordne Einleitung, jeden Verkaufspunkt und jeden Textabschnitt den verwendeten Quellen-IDs zu. Jede Zuordnung braucht mindestens zwei unabhängige Organisationen; winter mindestens drei. Die IDs werden nicht veröffentlicht.
 - Keine neuen Fakten. Konkrete Liefermerkmale nur aus Weclapp.
+- Interne Recherchelücken, Zweifel an der Sortenechtheit, fehlende Einzelpflanzen-, Herkunfts-, Chargen- oder Genetiknachweise sowie Formulierungen wie „nicht verifizierbar“ niemals im Kundentext erwähnen. Solche Hinweise bleiben ausschließlich intern. Die Sortenbezeichnung aus Weclapp ist für dieses Angebot verbindlich.
 
 GEPRÜFTE FORSCHUNG:
 ${JSON.stringify(researchForPrompt(research))}

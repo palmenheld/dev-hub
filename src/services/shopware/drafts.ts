@@ -10,6 +10,7 @@ import { parseHeightRange, parsePotDiameter } from "./fieldMapping";
 import { researchProduct } from "./research";
 import { getDraft, listDrafts, saveDraft } from "./dataStore";
 import { withMutationLock } from "./mutationLock";
+import { customerSafePlantText } from "./customerText";
 
 const REQUIRED_BLOCKS = [
   "identity",
@@ -158,10 +159,12 @@ export function renderDescription(
   sources: ResearchSource[]
 ) {
   const blocks = research.blocks
-    .map(
-      (block) =>
-        `<h2>${escapeHtml(block.heading)}</h2><p>${escapeHtml(block.text)} <small>Quellen: ${citationLinks(block.sourceIds, sources)}</small></p>`
-    )
+    .map((block) => {
+      const text = customerSafePlantText(block.text);
+      return text
+        ? `<h2>${escapeHtml(block.heading)}</h2><p>${escapeHtml(text)} <small>Quellen: ${citationLinks(block.sourceIds, sources)}</small></p>`
+        : "";
+    })
     .join("");
   const citedIds = new Set([
     ...research.blocks.flatMap((block) => block.sourceIds),
@@ -178,7 +181,7 @@ export function renderDescription(
     )
     .join("");
 
-  return `<p><strong>${escapeHtml(research.confirmedGermanName)}</strong> (<em>${escapeHtml(research.confirmedLatinName)}</em>) – fachlich recherchierte Pflanzeninformationen für Standort, Pflege und Überwinterung.</p>${blocks}<h2>Pflege auf einen Blick</h2><ul><li><strong>Licht:</strong> ${escapeHtml(research.care.light.text)}</li><li><strong>Wasser:</strong> ${escapeHtml(research.care.water.text)}</li><li><strong>Düngung:</strong> ${escapeHtml(research.care.fertilizer.text)}</li><li><strong>Winter:</strong> ${escapeHtml(research.care.winter.text)}</li></ul><p><small>Temperaturangaben sind Richtwerte. Standort, Pflanzengröße, Wind, Feuchtigkeit, Wurzelraum und Kübelhaltung beeinflussen die tatsächliche Frostverträglichkeit.</small></p><h2>Verwendete Fachquellen</h2><ol>${sourceList}</ol>`;
+  return `<p><strong>${escapeHtml(research.confirmedGermanName)}</strong> (<em>${escapeHtml(research.confirmedLatinName)}</em>) – fachlich recherchierte Pflanzeninformationen für Standort, Pflege und Überwinterung.</p>${blocks}<h2>Pflege auf einen Blick</h2><ul><li><strong>Licht:</strong> ${escapeHtml(customerSafePlantText(research.care.light.text))}</li><li><strong>Wasser:</strong> ${escapeHtml(customerSafePlantText(research.care.water.text))}</li><li><strong>Düngung:</strong> ${escapeHtml(customerSafePlantText(research.care.fertilizer.text))}</li><li><strong>Winter:</strong> ${escapeHtml(customerSafePlantText(research.care.winter.text))}</li></ul><p><small>Temperaturangaben sind Richtwerte. Standort, Pflanzengröße, Wind, Feuchtigkeit, Wurzelraum und Kübelhaltung beeinflussen die tatsächliche Frostverträglichkeit.</small></p><h2>Verwendete Fachquellen</h2><ol>${sourceList}</ol>`;
 }
 
 function draftTitle(

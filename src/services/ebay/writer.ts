@@ -1,5 +1,10 @@
 import type { EbayListingDraft } from "@/types/ebay";
 import { getArticleImage } from "@/services/weclapp";
+import {
+  customerSafePlantHtml,
+  customerSafePlantText,
+} from "@/services/shopware/customerText";
+import { preferredGermanCommonName } from "@/services/shopware/plantNames";
 import { withEbayMutationLock } from "./lock";
 import { getEbayCandidate } from "./candidates";
 import { ebayFormDataRequest, ebayRequest } from "./client";
@@ -886,7 +891,114 @@ async function reactivateUnlocked(id: string) {
     );
   }
 }
+async function sanitizePublishedCustomerCopyUnlocked(id: string) {
+  const draft = await getEbayDraft(id);
+  if (!draft) throw new Error("Der eBay-Vorgang wurde nicht gefunden.");
+  if (draft.status !== "published") {
+    throw new Error("Nur ein aktives eBay-Angebot kann direkt bereinigt werden.");
+  }
 
+  const settings = await getEbaySettings();
+  assertDraftTarget(draft, settings);
+  const preferredName = preferredGermanCommonName(
+    draft.research.confirmedLatinName,
+    draft.research.confirmedGermanName
+  );
+  const replaceCustomerName = (value: string) => {
+    let next = value;
+    const currentName = draft.research.confirmedGermanName.trim();
+    if (currentName && currentName !== preferredName) {
+      next = next.split(currentName).join(preferredName);
+    }
+    if (/^olea\s+europaea(?:\s|$)/iu.test(draft.research.confirmedLatinName)) {
+      next = next.split("Echter Ölbaum").join("Olivenbaum");
+      next = next.split("Echten Ölbaum").join("Olivenbaum");
+    }
+    return next;
+  };
+  const title = replaceCustomerName(customerSafePlantText(draft.title));
+  const descriptionHtml = replaceCustomerName(
+    customerSafePlantHtml(draft.descriptionHtml)
+  );
+  if (
+    title === draft.title &&
+    descriptionHtml === draft.descriptionHtml &&
+    preferredName === draft.research.confirmedGermanName
+  ) {
+    return draft;
+  }
+
+  const sku = draft.source.articleNumber;
+  const encodedSku = encodeURIComponent(sku);
+  const inventoryItem = await ebayRequest<Record<string, unknown>>(
+    `sell/inventory/v1/inventory_item/${encodedSku}`
+  );
+  const offer = await managedOfferForDraft(draft);
+  if (!inventoryItem || !offer.offerId) {
+    throw new Error("eBay-Inventar oder Angebots-ID konnte nicht geladen werden.");
+  }
+
+  const inventoryPayload = { ...inventoryItem };
+  delete inventoryPayload.sku;
+  delete inventoryPayload.locale;
+  const product =
+    typeof inventoryPayload.product === "object" &&
+    inventoryPayload.product !== null &&
+    !Array.isArray(inventoryPayload.product)
+      ? (inventoryPayload.product as Record<string, unknown>)
+      : {};
+  inventoryPayload.product = {
+    ...product,
+    title,
+    description: descriptionHtml,
+  };
+
+  const offerPayload = { ...(offer as Record<string, unknown>) };
+  delete offerPayload.offerId;
+  delete offerPayload.sku;
+  delete offerPayload.status;
+  delete offerPayload.listing;
+  offerPayload.listingDescription = descriptionHtml;
+
+  await ebayRequest(
+    `sell/inventory/v1/inventory_item/${encodedSku}`,
+    { method: "PUT", body: inventoryPayload, timeoutMs: 45_000 }
+  );
+  await ebayRequest(
+    `sell/inventory/v1/offer/${encodeURIComponent(offer.offerId)}`,
+    { method: "PUT", body: offerPayload, timeoutMs: 45_000 }
+  );
+
+  const now = new Date().toISOString();
+  const corrected: EbayListingDraft = {
+    ...draft,
+    title,
+    descriptionHtml,
+    research: {
+      ...draft.research,
+      confirmedGermanName: preferredName,
+    },
+    aspects: {
+      ...draft.aspects,
+      ...(draft.aspects["Allgemeiner Name"]
+        ? { "Allgemeiner Name": [preferredName] }
+        : {}),
+    },
+    updatedAt: now,
+    lastSyncedAt: now,
+    lastError: undefined,
+  };
+  await saveEbayDraft(corrected);
+  return corrected;
+}
+
+
+
+export function sanitizePublishedEbayCustomerCopy(id: string) {
+  return withEbayMutationLock(`ebay-draft:${id}`, () =>
+    sanitizePublishedCustomerCopyUnlocked(id)
+  );
+}
 
 export function publishEbayDraft(id: string) {
   return withEbayMutationLock(`ebay-draft:${id}`, () => publishUnlocked(id));

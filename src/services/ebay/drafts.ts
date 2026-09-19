@@ -11,6 +11,7 @@ import type {
 } from "@/types/ebay";
 import { validateDraft as validateResearch } from "@/services/shopware/drafts";
 import { researchProduct } from "@/services/shopware/research";
+import { containsInternalQualityLanguage } from "@/services/shopware/customerText";
 import { withEbayMutationLock } from "./lock";
 import { generateEbayCopy, generatedEbayAspects } from "./copy";
 import { getEbayCandidate } from "./candidates";
@@ -72,6 +73,11 @@ function validateDescriptionHtml(value: string) {
   ) {
     throw new Error(
       "Externe Links sind in der eBay-Beschreibung gesperrt. Die Fachquellen bleiben im Hub dokumentiert."
+    );
+  }
+  if (containsInternalQualityLanguage(value.replace(/<[^>]*>/g, " "))) {
+    throw new Error(
+      "Interne Prüf- oder Verifikationshinweise dürfen nicht im eBay-Kundentext stehen."
     );
   }
 }
