@@ -232,6 +232,7 @@ export type EbayListingDraft = {
   quantity: number;
   generatedCopy?: EbayGeneratedCopy;
   research: ProductResearch;
+  researchPolicyVersion?: string;
   sources: ResearchSource[];
   researchValidation: DraftValidation;
   validation: DraftValidation;

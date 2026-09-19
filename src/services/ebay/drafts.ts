@@ -11,6 +11,7 @@ import type {
 } from "@/types/ebay";
 import { validateDraft as validateResearch } from "@/services/shopware/drafts";
 import { researchProduct } from "@/services/shopware/research";
+import { RESEARCH_POLICY_VERSION } from "@/services/shopware/researchCache";
 import { containsInternalQualityLanguage } from "@/services/shopware/customerText";
 import { withEbayMutationLock } from "./lock";
 import { generateEbayCopy, generatedEbayAspects } from "./copy";
@@ -598,6 +599,7 @@ async function createUnlocked(
       Math.max(0, Math.floor(candidate.stock ?? 0)),
     generatedCopy,
     research,
+    researchPolicyVersion: RESEARCH_POLICY_VERSION,
     sources,
     researchValidation,
     validation: { valid: false, errors: [], warnings: [] },
@@ -788,7 +790,8 @@ async function regenerateCopyUnlocked(id: string) {
     candidate.latinName.trim().toLocaleLowerCase("de-DE") !==
       draft.source.latinName.trim().toLocaleLowerCase("de-DE") ||
     candidate.germanName.trim().toLocaleLowerCase("de-DE") !==
-      draft.source.germanName.trim().toLocaleLowerCase("de-DE");
+      draft.source.germanName.trim().toLocaleLowerCase("de-DE") ||
+    draft.researchPolicyVersion !== RESEARCH_POLICY_VERSION;
   const { research, sources } = identityChanged
     ? await researchProduct(candidate)
     : { research: draft.research, sources: draft.sources };
@@ -817,6 +820,7 @@ async function regenerateCopyUnlocked(id: string) {
       ...generatedAspects,
       ...draft.aspects,
     },
+    researchPolicyVersion: RESEARCH_POLICY_VERSION,
     research,
     sources,
     researchValidation,

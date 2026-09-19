@@ -7,7 +7,7 @@ import type {
   ResearchSource,
 } from "@/types/shopwarePublishing";
 
-const CACHE_VERSION = "plant-research-v4-balanced-winter-trusted-sources";
+export const RESEARCH_POLICY_VERSION = "plant-research-v4-balanced-winter-trusted-sources";
 
 type CachedResearch = {
   version: string;
@@ -28,7 +28,7 @@ export function researchCacheKey(candidate: ProductCandidate) {
     normalized(candidate.potSize),
   ].join("|");
   return createHash("sha256")
-    .update(`${CACHE_VERSION}|${identity}`)
+    .update(`${RESEARCH_POLICY_VERSION}|${identity}`)
     .digest("hex");
 }
 
@@ -58,7 +58,7 @@ export async function readCachedResearch(candidate: ProductCandidate) {
       await readFile(cachePath(candidate), "utf8")
     ) as CachedResearch;
     if (
-      cached.version !== CACHE_VERSION ||
+      cached.version !== RESEARCH_POLICY_VERSION ||
       !cached.cachedAt ||
       Date.now() - Date.parse(cached.cachedAt) > maxAgeMs() ||
       !cached.research?.confirmedLatinName ||
@@ -84,7 +84,7 @@ export async function saveCachedResearch(
   await mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
   const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   const cached: CachedResearch = {
-    version: CACHE_VERSION,
+    version: RESEARCH_POLICY_VERSION,
     cachedAt: new Date().toISOString(),
     research,
     sources,
