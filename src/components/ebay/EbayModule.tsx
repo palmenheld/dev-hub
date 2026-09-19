@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { renderEbayDescription } from "@/services/ebay/description";
 import { emptyJsonPost } from "@/lib/http";
 import type {
@@ -134,10 +135,14 @@ export default function EbayModule({
   initialConnection,
   initialSettings,
   initialFeedback = null,
+  detailOnly = false,
+  initialArticleId = "",
 }: {
   initialConnection: EbayConnection;
   initialSettings: EbayPublishingSettings;
   initialFeedback?: Feedback | null;
+  detailOnly?: boolean;
+  initialArticleId?: string;
 }) {
   const [connection, setConnection] = useState(initialConnection);
   const [setup, setSetup] = useState<EbaySetup | null>(null);
@@ -191,7 +196,8 @@ export default function EbayModule({
     let cancelled = false;
     void (async () => {
       const parameters = new URLSearchParams(window.location.search);
-      const directArticleId = parameters.get("articleId")?.trim() || "";
+      const directArticleId =
+        initialArticleId || parameters.get("articleId")?.trim() || "";
       if (directArticleId) {
         setBusy("direct-draft");
         setFeedback({
@@ -254,13 +260,6 @@ export default function EbayModule({
               (draft) => draft.source.articleId !== directDraft?.source.articleId
             ),
           ];
-          parameters.delete("articleId");
-          const query = parameters.toString();
-          window.history.replaceState(
-            {},
-            "",
-            `${window.location.pathname}${query ? `?${query}` : ""}`
-          );
         }
 
         if (!cancelled) {
@@ -316,7 +315,7 @@ export default function EbayModule({
     return () => {
       cancelled = true;
     };
-  }, [initialConnection.configured]);
+  }, [initialArticleId, initialConnection.configured]);
 
   const visible = useMemo(
     () =>
@@ -1096,7 +1095,27 @@ export default function EbayModule({
         <p className="text-sm font-semibold uppercase tracking-wide text-[var(--ph-gold)]">
           Verkaufskanal
         </p>
-        <h1 className="mt-1 text-3xl text-[var(--ph-green-dark)]">eBay</h1>
+        <div className="mt-1 flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+          <h1 className="text-3xl text-[var(--ph-green-dark)]">
+            {detailOnly ? "eBay-Artikel bearbeiten" : "eBay"}
+          </h1>
+          {detailOnly && (
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/channels/ebay"
+                className="rounded-xl border border-[var(--ph-green-dark)] bg-white px-4 py-2 text-sm font-semibold text-[var(--ph-green-dark)]"
+              >
+                Zur Artikelübersicht
+              </Link>
+              <Link
+                href="/channels/ebay/templates"
+                className="rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700"
+              >
+                Templates
+              </Link>
+            </div>
+          )}
+        </div>
         <p className="mt-2 max-w-4xl text-slate-500">
           Weclapp-Artikel auswählen, Pflanzenwissen belegt per KI ergänzen,
           eBay-Kategorie und Pflichtmerkmale prüfen und erst nach deiner
@@ -1104,7 +1123,7 @@ export default function EbayModule({
         </p>
       </header>
 
-      <section className={`mt-6 rounded-2xl border p-5 ${connectionColor}`}>
+      <section className={`${detailOnly ? "hidden" : "mt-6"} rounded-2xl border p-5 ${connectionColor}`}>
         <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -1142,7 +1161,7 @@ export default function EbayModule({
         </div>
       </section>
 
-      {!connection.configured && (
+      {!detailOnly && !connection.configured && (
         <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm">
           <h2 className="text-xl text-[var(--ph-green-dark)]">
             eBay-Zugang einmalig einrichten
@@ -1199,7 +1218,7 @@ export default function EbayModule({
         </div>
       )}
 
-      {setup && settings && (
+      {!detailOnly && setup && settings && (
         <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm">
           <h2 className="text-xl text-[var(--ph-green-dark)]">
             Einmaliges eBay-Ziel
@@ -1494,7 +1513,7 @@ export default function EbayModule({
       )}
 
       <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm">
-        <div className="flex flex-col justify-between gap-2 lg:flex-row lg:items-start">
+        <div className={detailOnly ? "hidden" : "flex flex-col justify-between gap-2 lg:flex-row lg:items-start"}>
           <div>
             <p className="text-xs font-bold uppercase tracking-wide text-[var(--ph-gold)]">
               Wiederverwendbare Vorgaben
@@ -1513,7 +1532,7 @@ export default function EbayModule({
           </span>
         </div>
 
-        {templates.length ? (
+        {!detailOnly && (templates.length ? (
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {templates.map((template) => (
               <article key={template.id} className="rounded-xl border p-4">
@@ -1561,9 +1580,9 @@ export default function EbayModule({
             Noch kein Template gespeichert. Öffne oder erstelle zuerst einen Entwurf,
             wähle Kategorie und Merkmale und speichere ihn.
           </p>
-        )}
+        ))}
 
-        <details className="mt-4 rounded-xl border p-4">
+        <details className="mt-4 rounded-xl border p-4" open={detailOnly}>
           <summary className="cursor-pointer font-bold">
             Aktuellen Entwurf als Template speichern
           </summary>
@@ -1656,7 +1675,7 @@ export default function EbayModule({
       </section>
 
       <section className="mt-6 overflow-hidden rounded-2xl border bg-white shadow-sm">
-        <div className="border-b bg-[var(--ph-green-light)] p-5">
+        <div className={detailOnly ? "hidden" : "border-b bg-[var(--ph-green-light)] p-5"}>
           <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-[var(--ph-gold)]">
@@ -1680,7 +1699,7 @@ export default function EbayModule({
           </div>
         </div>
 
-        <div className="border-b p-5">
+        <div className={detailOnly ? "hidden" : "border-b p-5"}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm">
@@ -1855,7 +1874,7 @@ export default function EbayModule({
           )}
         </div>
 
-        {drafts.length > 0 && (
+        {!detailOnly && drafts.length > 0 && (
           <div className="border-b p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-bold">Gespeicherte eBay-Vorgänge</h3>

@@ -11,6 +11,7 @@ export const navigation: NavItem[] = [
   { label: "Medien", href: "/media" },
   { label: "Shopware", href: "/channels/shopware" },
   { label: "eBay", href: "/channels/ebay" },
+  { label: "eBay Templates", href: "/channels/ebay/templates" },
   { label: "Kleinanzeigen (On Hold)", href: "/channels/kleinanzeigen" },
   { label: "Lager & Bestand", href: "/stock" },
   { label: "Bestellungen", href: "/orders" },

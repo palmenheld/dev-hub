@@ -1,4 +1,5 @@
 import AppShell from "@/components/layout/AppShell";
+import EbayArticleOverview from "@/components/ebay/EbayArticleOverview";
 import EbayModule from "@/components/ebay/EbayModule";
 import { getEbayConnection } from "@/services/ebay/config";
 import { getEbaySettings } from "@/services/ebay/store";
@@ -18,6 +19,7 @@ export default async function EbayPage({
   const settings = await getEbaySettings();
   const connected = first(parameters.ebayConnected);
   const error = first(parameters.ebayError);
+  const articleId = first(parameters.articleId)?.trim() || "";
   const initialFeedback = connected === "1"
     ? {
         kind: "success" as const,
@@ -29,11 +31,20 @@ export default async function EbayPage({
       : null;
   return (
     <AppShell>
-      <EbayModule
-        initialConnection={getEbayConnection(settings)}
-        initialSettings={settings}
-        initialFeedback={initialFeedback}
-      />
+      {articleId ? (
+        <EbayModule
+          initialConnection={getEbayConnection(settings)}
+          initialSettings={settings}
+          initialFeedback={initialFeedback}
+          detailOnly
+          initialArticleId={articleId}
+        />
+      ) : (
+        <EbayArticleOverview
+          initialConnection={getEbayConnection(settings)}
+          initialSettings={settings}
+        />
+      )}
     </AppShell>
   );
 }
