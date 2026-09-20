@@ -1,5 +1,5 @@
-import { WeclappArticle } from "@/services/weclapp/types/article";
-import {
+import type { WeclappArticle } from "@/services/weclapp/types/article";
+import type {
   ProductCandidate,
   ShippingClass,
   WeclappFieldKey,
@@ -193,6 +193,61 @@ export type ParsedHeight = {
   label: string;
 };
 
+const NON_BOTANICAL_EPITHETS = new Set([
+  "winterhart",
+  "mediterran",
+  "immergrün",
+  "immergruen",
+  "grün",
+  "gruen",
+  "groß",
+  "gross",
+  "klein",
+  "hoch",
+  "buschig",
+  "mehrstämmig",
+  "mehrstaemmig",
+  "verschiedene",
+  "sortiert",
+  "premium",
+  "deutsch",
+]);
+
+/** Extracts a botanical binomial (plus optional rank/cultivar) from a product name. */
+export function parseLatinNameFromProductName(value: unknown) {
+  const text = textValue(value).replace(/[–—]/gu, "-");
+  if (!text) return undefined;
+  const pattern = /\b([A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ-]{2,})\s+(spp?\.|[a-zà-öø-ÿ][a-zà-öø-ÿ-]{1,})(\s+(?:(?:subsp\.|ssp\.|var\.|f\.)\s+[a-zà-öø-ÿ][a-zà-öø-ÿ-]{1,}|['‘’\"][^'‘’\"]{2,}['‘’\"]))?/gu;
+  const latinEnding = /(?:a|ae|ii|i|is|um|us|ensis|ense|ana|iana|ica|ata|osa|fera|ifera|oides|ides|alis|aris|orum|arum)$/iu;
+  const candidates = [...text.matchAll(pattern)]
+    .map((match) => {
+      const epithet = match[2].toLocaleLowerCase("de-DE");
+      if (NON_BOTANICAL_EPITHETS.has(epithet.replace(/\.$/u, ""))) {
+        return null;
+      }
+      const prefix = text.slice(Math.max(0, (match.index ?? 0) - 3), match.index);
+      const score =
+        (epithet === "sp." || epithet === "spp." ? 5 : 0) +
+        (latinEnding.test(epithet) ? 3 : 0) +
+        (match[3] ? 2 : 0) +
+        (/[(\-/:]\s*$/u.test(prefix) ? 1 : 0);
+      return {
+        value: `${match[1]} ${match[2]}${match[3] || ""}`
+          .replace(/[‘’]/gu, "'")
+          .replace(/\s+/gu, " ")
+          .trim(),
+        score,
+        index: match.index ?? 0,
+      };
+    })
+    .filter(
+      (candidate): candidate is { value: string; score: number; index: number } =>
+        Boolean(candidate && candidate.score >= 3)
+    )
+    .sort((left, right) => right.score - left.score || left.index - right.index);
+  return candidates[0]?.value;
+}
+
 function toCentimeters(value: string, unit?: string) {
   const number = Number(value);
   return unit?.toLowerCase() === "m" ? number * 100 : number;
@@ -294,24 +349,50 @@ export function parseHeightCm(value: unknown): number | undefined {
 }
 
 export type ParsedPotDiameter = {
-  diameterCm: number;
+  diameterCm?: number;
+  volumeLiters?: number;
   code: string;
   label: string;
 };
 
 export function parsePotDiameter(value: unknown): ParsedPotDiameter | undefined {
   const text = textValue(value);
+  const literMatch = text.match(/\b(\d+(?:[.,]\d+)?)\s*(?:l|liter)\b/i);
+  if (literMatch) {
+    const volumeLiters = Number(literMatch[1].replace(",", "."));
+    if (
+      Number.isFinite(volumeLiters) &&
+      volumeLiters >= 0.5 &&
+      volumeLiters <= 500
+    ) {
+      const formatted = Number.isInteger(volumeLiters)
+        ? String(volumeLiters)
+        : String(volumeLiters).replace(".", ",");
+      return {
+        volumeLiters,
+        code: `${formatted}L`,
+        label: `${formatted} l`,
+      };
+    }
+  }
   const match = text.match(/\b([cvm])\s*[-:]?\s*(\d{1,3})(?!\d)/i);
   if (!match) return undefined;
-  const diameterCm = Number(match[2]);
-  if (!Number.isFinite(diameterCm) || diameterCm < 5 || diameterCm > 200) {
+  const size = Number(match[2]);
+  if (!Number.isFinite(size) || size < 1 || size > 200) {
     return undefined;
   }
-  const code = match[1].toUpperCase() + String(diameterCm);
+  const code = match[1].toUpperCase() + String(size);
+  if (size <= 15) {
+    return {
+      volumeLiters: size,
+      code,
+      label: `${size} l (${code})`,
+    };
+  }
   return {
-    diameterCm,
+    diameterCm: size,
     code,
-    label: "Ø " + diameterCm + " cm (" + code + ")",
+    label: "Ø " + size + " cm (" + code + ")",
   };
 }
 
@@ -413,7 +494,11 @@ export function mapCandidate(
   const germanName =
     textValue(readSelector(article, fieldMap.germanName)) ||
     textValue(article.name);
-  const latinName = textValue(readSelector(article, fieldMap.latinName));
+  const explicitLatinName = textValue(
+    readSelector(article, fieldMap.latinName)
+  );
+  const nameLatinName = parseLatinNameFromProductName(article.name);
+  const latinName = explicitLatinName || nameLatinName || "";
   const mappedHeight = parseHeightRange(
     readSelector(article, fieldMap.heightCm),
     true
@@ -450,6 +535,11 @@ export function mapCandidate(
     articleNumber,
     germanName,
     latinName,
+    latinNameSource: explicitLatinName
+      ? "field"
+      : nameLatinName
+        ? "product_name"
+        : undefined,
     articleCategoryId: articleCategoryId || undefined,
     articleCategoryName:
       articleCategoryName ||
@@ -462,6 +552,7 @@ export function mapCandidate(
     heightSource: mappedHeight ? "field" : nameHeight ? "product_name" : undefined,
     potSize,
     potDiameterCm: parsedPot?.diameterCm,
+    potVolumeLiters: parsedPot?.volumeLiters,
     potSizeSource: explicitPotSize
       ? "field"
       : namePot

@@ -45,7 +45,9 @@ export function applyEbayCandidateOverrides(
       ? { articleNumber: overrides.articleNumber }
       : {}),
     ...(overrides.germanName ? { germanName: overrides.germanName } : {}),
-    ...(overrides.latinName ? { latinName: overrides.latinName } : {}),
+    ...(overrides.latinName
+      ? { latinName: overrides.latinName, latinNameSource: "manual" as const }
+      : {}),
     ...(overrides.heightCm
       ? {
           heightCm: overrides.heightCm,
@@ -57,11 +59,15 @@ export function applyEbayCandidateOverrides(
         }
       : {}),
     ...(overrides.potSize
-      ? {
-          potSize: overrides.potSize,
-          potDiameterCm: parsePotDiameter(overrides.potSize)?.diameterCm,
-          potSizeSource: "manual" as const,
-        }
+      ? (() => {
+          const parsedPot = parsePotDiameter(overrides.potSize);
+          return {
+            potSize: parsedPot?.label || overrides.potSize,
+            potDiameterCm: parsedPot?.diameterCm,
+            potVolumeLiters: parsedPot?.volumeLiters,
+            potSizeSource: "manual" as const,
+          };
+        })()
       : {}),
     ...(overrides.price
       ? {

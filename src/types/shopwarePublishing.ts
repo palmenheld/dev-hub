@@ -26,6 +26,7 @@ export type ProductCandidate = {
   articleNumber: string;
   germanName: string;
   latinName: string;
+  latinNameSource?: "field" | "product_name" | "manual";
   articleCategoryId?: string;
   articleCategoryName?: string;
   active: boolean;
@@ -36,6 +37,7 @@ export type ProductCandidate = {
   heightSource?: "field" | "product_name" | "manual";
   potSize?: string;
   potDiameterCm?: number;
+  potVolumeLiters?: number;
   potSizeSource?: "field" | "product_name" | "manual";
   price?: number;
   priceSource?: string;

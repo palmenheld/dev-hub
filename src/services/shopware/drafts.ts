@@ -561,7 +561,8 @@ function refreshedSourceFields(
   );
   add(
     previous.potSize !== current.potSize ||
-      previous.potDiameterCm !== current.potDiameterCm,
+      previous.potDiameterCm !== current.potDiameterCm ||
+      previous.potVolumeLiters !== current.potVolumeLiters,
     "Topfmaß"
   );
   add(!sameNumber(previous.price, current.price), "Standardpreis");

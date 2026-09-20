@@ -330,6 +330,7 @@ function changedSourceFields(
   );
   compare("Topfgröße", saved.potSize ?? "", current.potSize ?? "");
   compare("Topfdurchmesser", saved.potDiameterCm, current.potDiameterCm);
+  compare("Topfvolumen", saved.potVolumeLiters, current.potVolumeLiters);
   compare("Preis", saved.price, current.price);
   compare("Preisquelle", saved.priceSource, current.priceSource);
   compare("Preis-Fallback", saved.priceFallback, current.priceFallback);
