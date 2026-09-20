@@ -19,7 +19,11 @@ import {
   renderEbayDescription,
 } from "./description";
 import { withEbayMutationLock } from "./lock";
-import { generateEbayCopy, generatedEbayAspects } from "./copy";
+import {
+  EBAY_COPY_POLICY_VERSION,
+  generateEbayCopy,
+  generatedEbayAspects,
+} from "./copy";
 import { getEbayCandidate } from "./candidates";
 import {
   applyEbayCandidateOverrides,
@@ -131,6 +135,7 @@ function findReusablePlantDraft(
     if (
       draft.source.articleId === candidate.articleId ||
       !draft.generatedCopy ||
+      draft.copyPolicyVersion !== EBAY_COPY_POLICY_VERSION ||
       draft.researchPolicyVersion !== RESEARCH_POLICY_VERSION ||
       !draft.researchValidation.valid
     ) {
@@ -672,6 +677,7 @@ async function createUnlocked(
       templateValues?.quantity ??
       Math.max(0, Math.floor(candidate.stock ?? 0)),
     generatedCopy,
+    copyPolicyVersion: EBAY_COPY_POLICY_VERSION,
     research,
     researchPolicyVersion: RESEARCH_POLICY_VERSION,
     contentReuse: reuseSource
@@ -902,6 +908,7 @@ async function regenerateCopyUnlocked(id: string) {
     title: generatedCopy.title,
     descriptionHtml: renderEbayDescription(generatedCopy, candidate, research),
     generatedCopy,
+    copyPolicyVersion: EBAY_COPY_POLICY_VERSION,
     contentReuse: undefined,
     aspects: {
       ...generatedAspects,

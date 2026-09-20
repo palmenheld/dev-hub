@@ -253,6 +253,7 @@ export type EbayListingDraft = {
   price: number;
   quantity: number;
   generatedCopy?: EbayGeneratedCopy;
+  copyPolicyVersion?: string;
   research: ProductResearch;
   researchPolicyVersion?: string;
   contentReuse?: {

@@ -162,6 +162,8 @@ const EBAY_PRODUCT_TYPES = new Set([
   "Zimmerpflanzen",
 ]);
 
+export const EBAY_COPY_POLICY_VERSION = "ebay-copy-v6-natural-mobile";
+
 function normalizedText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
@@ -212,6 +214,23 @@ function assertLength(value: string, label: string, minimum: number, maximum: nu
   if (length < minimum || length > maximum) {
     throw new Error(`Der automatisch erzeugte eBay-${label} ist nicht im erlaubten Bereich (${minimum}–${maximum} Zeichen).`);
   }
+}
+
+function fitSection(value: string, maximum: number) {
+  const clean = normalizedText(value);
+  if (clean.length <= maximum) return clean;
+  const sentences = clean.match(/[^.!?]+(?:[.!?]+|$)/gu) ?? [];
+  let result = "";
+  for (const sentence of sentences) {
+    const next = normalizedText(`${result} ${sentence}`);
+    if (next.length > maximum) break;
+    result = next;
+  }
+  if (result.length >= Math.min(60, Math.floor(maximum * 0.4))) return result;
+  const slice = clean.slice(0, maximum - 1);
+  const lastSpace = slice.lastIndexOf(" ");
+  const boundary = lastSpace >= Math.floor(maximum * 0.7) ? lastSpace : slice.length;
+  return `${slice.slice(0, boundary).replace(/[,:;\s-]+$/u, "")}.`;
 }
 
 function rootDomain(domain: string) {
@@ -333,12 +352,21 @@ function validateGeneratedCopy(
   ] as EbayGeneratedCopy["itemSpecifics"]["sunlight"];
   copy.itemSpecifics.commonName = resolvedCommonName(copy, research);
 
+  copy.intro = fitSection(copy.intro, 280);
+  copy.appearance = fitSection(copy.appearance, 420);
+  copy.location = fitSection(copy.location, 320);
+  copy.care = fitSection(copy.care, 450);
+  copy.winter = fitSection(copy.winter, 500);
+  copy.sellingPoints = copy.sellingPoints.map((point) =>
+    fitSection(point, 120)
+  );
+
   assertLength(copy.title, "Titel", 20, 80);
-  assertLength(copy.intro, "Einleitung", 80, 360);
-  assertLength(copy.appearance, "Abschnitt Erscheinungsbild", 80, 650);
-  assertLength(copy.location, "Abschnitt Standort", 60, 500);
-  assertLength(copy.care, "Abschnitt Pflege", 100, 700);
-  assertLength(copy.winter, "Abschnitt Überwinterung", 100, 750);
+  assertLength(copy.intro, "Einleitung", 60, 360);
+  assertLength(copy.appearance, "Abschnitt Erscheinungsbild", 60, 650);
+  assertLength(copy.location, "Abschnitt Standort", 50, 500);
+  assertLength(copy.care, "Abschnitt Pflege", 80, 700);
+  assertLength(copy.winter, "Abschnitt Überwinterung", 80, 750);
   if (copy.sellingPoints.length < 3 || copy.sellingPoints.length > 5) {
     throw new Error("Der eBay-Text benötigt drei bis fünf Verkaufspunkte.");
   }
@@ -434,12 +462,12 @@ export async function generateEbayCopy(
   const response = await openAIResponse({
     model,
     store: false,
-    prompt_cache_key: "palmenheld-ebay-copy-v5",
+    prompt_cache_key: "palmenheld-ebay-copy-v6",
     reasoning: { effort: "low" },
     input: [
       {
         role: "developer",
-        content: "Du bist ein präziser deutscher eBay-Redakteur für lebende Pflanzen. Schreibe einen eigenständigen, mobil gut scanbaren Verkaufstext ausschließlich aus den gelieferten Fakten. Erfinde nichts. Keine Superlative, Garantien, Heilversprechen, künstliche Verknappung, Preis- oder Versandversprechen. Keine Quellen, Quellen-IDs, URLs, Domains, E-Mail-Adressen, Telefonnummern, Emojis, fremde Marken oder Kontaktaufforderungen im Kundentext. Vermeide Keyword-Wiederholungen. Unterscheide Freiland und Kübelhaltung. Frostwerte sind Richtwerte, niemals Zusagen. Interne Unsicherheiten, Recherchegrenzen, fehlende Nachweise, Sortenechtheits- oder Verifikationshinweise gehören ausschließlich in die interne Qualitätsprüfung und niemals in Titel, Einleitung, Verkaufspunkte oder Beschreibung. Eine Sortenbezeichnung aus den verbindlichen Weclapp-Artikeldaten wird als Angebotsmerkmal übernommen und im Kundentext nicht angezweifelt.",
+        content: "Du schreibst wie ein erfahrener deutscher Pflanzenhändler, der sein Sortiment selbst kennt und bei eBay verkauft. Der Text soll menschlich, konkret, unaufgeregt und mobil leicht lesbar sein. Schreibe kurze bis mittellange, natürlich variierte Sätze und nenne zuerst die kaufentscheidenden Angaben. Keine typische KI-Sprache und keine austauschbaren Werbefloskeln wie „Entdecken Sie“, „tauchen Sie ein“, „ein echter Blickfang“, „die perfekte Wahl“, „besticht durch“, „verleiht jedem Raum“, „ideal für alle“, „nicht nur … sondern auch“ oder „ob … oder“. Keine Einleitung mit einer rhetorischen Frage, kein Fazit, keine Meta-Kommentare und keine Wiederholung derselben Aussage in mehreren Abschnitten. Verwende Suchbegriffe nur dort, wo sie natürlich passen. Schreibe einen eigenständigen Verkaufstext ausschließlich aus den gelieferten Fakten und erfinde nichts. Keine Superlative, Garantien, Heilversprechen, künstliche Verknappung, Preis- oder Versandversprechen. Keine Quellen, Quellen-IDs, URLs, Domains, E-Mail-Adressen, Telefonnummern, Emojis, fremde Marken oder Kontaktaufforderungen im Kundentext. Unterscheide Freiland und Kübelhaltung. Frostwerte sind Richtwerte, niemals Zusagen. Interne Unsicherheiten, Recherchegrenzen, fehlende Nachweise, Sortenechtheits- oder Verifikationshinweise gehören ausschließlich in die interne Qualitätsprüfung und niemals in Titel, Einleitung, Verkaufspunkte oder Beschreibung. Eine Sortenbezeichnung aus den verbindlichen Weclapp-Artikeldaten wird als Angebotsmerkmal übernommen und im Kundentext nicht angezweifelt.",
       },
       {
         role: "user",
@@ -457,13 +485,14 @@ ${groupGuidance}
 
 REGELN:
 - Titel: 65–80 Zeichen anstreben, maximal 80. Wichtigste zutreffende Suchbegriffe zuerst. Deutschen und botanischen Pflanzennamen, Verkaufsgröße und falls vorhanden Topfgröße verwenden. Keine Artikelnummer, Füllwörter, Doppelungen oder Symbole wie ©, ®, ™.
-- intro: Sofort eindeutig sagen, welche Pflanze in welcher Verkaufsgröße und Topfgröße angeboten wird.
-- sellingPoints: drei bis fünf kurze, konkrete, belegte Eigenschaften.
-- appearance: Aussehen und Wuchs sachlich beschreiben.
-- location: passenden Standort klar erklären.
-- care: Wasser und Düngung praktisch erklären.
-- winter: Winterhärte mit dem praxisnah belegten zentralen Temperatur-Richtwert ${research.minTemperatureC} °C nennen. Die belegte Spanne, Freiland/Kübel und den Richtwertcharakter verständlich erklären. Den Wert nicht durch eine pauschal wärmere, übervorsichtige Angabe abschwächen.
-- Insgesamt ungefähr 250–450 Wörter. Kaufentscheidende Artikeldaten innerhalb der ersten etwa 800 Zeichen.
+- intro: In 100–240 Zeichen sofort eindeutig sagen, welche Pflanze in welcher Verkaufsgröße und Topfgröße angeboten wird. Ohne Begrüßung, Werbespruch oder leere Einleitung.
+- sellingPoints: drei bis fünf kurze, konkrete Eigenschaften mit jeweils ungefähr 25–100 Zeichen. Keine ganzen Absätze und keine Wiederholung aus der Einleitung.
+- appearance: In ungefähr 140–360 Zeichen Aussehen und Wuchs anschaulich, aber sachlich beschreiben.
+- location: In ungefähr 100–260 Zeichen den passenden Standort klar erklären.
+- care: In ungefähr 160–400 Zeichen Wasser und Düngung praktisch erklären. Konkrete Handgriffe sind wichtiger als botanische Allgemeinplätze.
+- winter: In ungefähr 160–450 Zeichen die Winterhärte mit dem praxisnah belegten zentralen Temperatur-Richtwert ${research.minTemperatureC} °C nennen. Die belegte Spanne, Freiland/Kübel und den Richtwertcharakter verständlich erklären. Den Wert nicht durch eine pauschal wärmere, übervorsichtige Angabe abschwächen.
+- Insgesamt ungefähr 220–380 Wörter. Kaufentscheidende Artikeldaten innerhalb der ersten etwa 500 Zeichen. Absätze nicht künstlich aufblähen, nur um eine Länge zu erreichen.
+- Sprachstil: natürliches, heutiges Deutsch eines fachkundigen Händlers. Konkret statt werblich, verständlich statt akademisch. Keine Floskelketten, kein Keyword-Stuffing, keine künstliche Begeisterung und keine gleichförmigen Satzanfänge.
 - searchTerms: vier bis zwölf passende Begriffe nur zur internen Qualitätsprüfung.
 - itemSpecifics.commonName: exakt den bestätigten, in Deutschland gebräuchlichsten Trivial- und Verkaufsnamen angeben. Seltenere fachsprachliche Synonyme nicht bevorzugen und niemals den botanischen/lateinischen Namen wiederholen. Beispiele: Strelitzia reginae → Paradiesvogelblume; Olea europaea → Olivenbaum, nicht Echter Ölbaum.
 - itemSpecifics.features: eine bis sechs belegte Besonderheiten ausschließlich aus dieser eBay-Liste wählen: Biologisch, Blühend, Eingetopft, Einjährig, Eßbar, Hirschresistent, Hitzebeständig, Immergrün, Kleinwüchsig, Laubabwerfend, Luftreinigung, Mehrjährig, Schnellwüchsig, Trockenresistent, Variegated, Winterhart, Zweijährig. Nur tatsächlich durch die Forschung gestützte Werte wählen; bei einer blühenden Strelitzie insbesondere Blühend.
