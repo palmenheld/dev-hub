@@ -7,6 +7,7 @@ import {
   containsInternalQualityLanguage,
   customerSafePlantText,
 } from "@/services/shopware/customerText";
+import { speciesGroupPrompt } from "@/services/plantSpeciesGroup";
 
 const EBAY_COPY_SCHEMA = {
   type: "object",
@@ -429,10 +430,11 @@ export async function generateEbayCopy(
   const model =
     process.env.OPENAI_EBAY_COPY_MODEL?.trim() || researchModel;
   const sourceSummary = sources.map(({ id, publisher, domain }) => ({ id, publisher, domain }));
+  const groupGuidance = speciesGroupPrompt(candidate);
   const response = await openAIResponse({
     model,
     store: false,
-    prompt_cache_key: "palmenheld-ebay-copy-v4",
+    prompt_cache_key: "palmenheld-ebay-copy-v5",
     reasoning: { effort: "low" },
     input: [
       {
@@ -451,6 +453,7 @@ VERBINDLICHE ARTIKELDATEN AUS WECLAPP:
 - Verkaufsgröße: ${candidate.heightLabel || "nicht angegeben"}
 - Topfgröße: ${candidate.potSize || "nicht angegeben"}
 - Artikelnummer: ${candidate.articleNumber}
+${groupGuidance}
 
 REGELN:
 - Titel: 65–80 Zeichen anstreben, maximal 80. Wichtigste zutreffende Suchbegriffe zuerst. Deutschen und botanischen Pflanzennamen, Verkaufsgröße und falls vorhanden Topfgröße verwenden. Keine Artikelnummer, Füllwörter, Doppelungen oder Symbole wie ©, ®, ™.
@@ -470,6 +473,7 @@ REGELN:
 - evidence: Ordne Einleitung, jeden Verkaufspunkt und jeden Textabschnitt den verwendeten Quellen-IDs zu. Jede Zuordnung braucht mindestens zwei unabhängige Organisationen; winter mindestens drei. Die IDs werden nicht veröffentlicht.
 - Keine neuen Fakten. Konkrete Liefermerkmale nur aus Weclapp.
 - Interne Recherchelücken, Zweifel an der Sortenechtheit, fehlende Einzelpflanzen-, Herkunfts-, Chargen- oder Genetiknachweise sowie Formulierungen wie „nicht verifizierbar“ niemals im Kundentext erwähnen. Solche Hinweise bleiben ausschließlich intern. Die Sortenbezeichnung aus Weclapp ist für dieses Angebot verbindlich.
+- Bei einer spp.-Artengruppe einen allgemeinen Verkaufstext zur Gattung schreiben und die belegten verbreitetsten Arten nur als typische Vertreter nennen. Keine davon als Identität des konkreten Artikels ausgeben und keine nur für eine Art geltende Eigenschaft verallgemeinern.
 
 GEPRÜFTE FORSCHUNG:
 ${JSON.stringify(researchForPrompt(research))}

@@ -10,6 +10,11 @@ import {
   researchCacheKey,
   saveCachedResearch,
 } from "./researchCache";
+import {
+  isSpeciesGroupCandidate,
+  speciesGroupLatinName,
+  speciesGroupPrompt,
+} from "@/services/plantSpeciesGroup";
 
 type OpenAIResponse = {
   status?: string;
@@ -313,10 +318,11 @@ async function researchProductFresh(
   candidate: ProductCandidate
 ): Promise<{ research: ProductResearch; sources: ResearchSource[] }> {
   const { model } = getResearchConfiguration();
+  const groupGuidance = speciesGroupPrompt(candidate);
   const dossierResponse = await openAIResponse({
     model,
     store: false,
-    prompt_cache_key: "palmenheld-plant-dossier-v4",
+    prompt_cache_key: "palmenheld-plant-dossier-v5",
     reasoning: { effort: "low" },
     tools: [
       {
@@ -361,6 +367,7 @@ Ausgangsdaten:
 - hinterlegter deutscher Name: ${candidate.germanName}
 - Verkaufsgröße: ${candidate.heightLabel || candidate.heightCm + " cm"}
 - Topfgröße: ${candidate.potSize || "nicht angegeben"}
+${groupGuidance}
 
 Prüfe zuerst die botanische Identität. Ermittle danach den in Deutschland üblichsten Trivial- und Verkaufsnamen anhand der tatsächlichen Verwendung bei etablierten deutschen Fachquellen und Pflanzenhändlern. Verwende den häufigsten Endkundenbegriff als Hauptnamen und führe botanisch korrekte, aber weniger gebräuchliche Namen nur als Synonyme. Beispiel: Olea europaea heißt im deutschen Verkauf und allgemeinen Sprachgebrauch primär Olivenbaum; Echter Ölbaum ist nur ein nachrangiges Synonym. Recherchiere danach Erscheinungsbild/Wuchs, Licht, Wasser, Düngung und Winterhärte. Jede Kernaussage braucht mindestens zwei unabhängige Organisationen; Winterhärte, belegte Temperaturspanne und zentraler Temperatur-Richtwert mindestens drei. Für Olea europaea ist eine belastbare Spanne um etwa −12 bis −16 °C zu prüfen; wenn die Fachquellen sie tragen, ist ein zentraler Wert wie −14 °C praxisnäher als pauschal −5 °C. Unterscheide kurzzeitige Lufttemperatur, Dauerkälte, Nässe, Wind, Alter/Akklimatisation und Kübelhaltung. Nenne pro Aussage die vollständigen URLs. Nutze keine KI-generierten oder redaktionell nicht verantworteten Artikel. Wenn die Beleglage nicht reicht, sage das klar und erfinde keinen Ersatz.`,
       },
@@ -379,7 +386,7 @@ Prüfe zuerst die botanische Identität. Ermittle danach den in Deutschland übl
     model,
     store: false,
     reasoning: { effort: "low" },
-    prompt_cache_key: "palmenheld-plant-structure-v4",
+    prompt_cache_key: "palmenheld-plant-structure-v5",
     input: [
       {
         role: "developer",
@@ -408,6 +415,7 @@ Anforderungen:
 - Kübel- und Jungpflanzenrisiken getrennt als Schutzempfehlung beschreiben und nicht durch einen künstlich wärmeren Artwert ersetzen.
 - Kübelpflanzen-Hinweis berücksichtigen.
 - Keine Aussage ergänzen, die nicht im Dossier belegt ist.
+${groupGuidance}
 
 QUELLENKATALOG:
 ${sourceCatalogue(sources)}
@@ -430,6 +438,9 @@ ${dossier}`,
   const research = JSON.parse(
     extractOutputText(structuredResponse)
   ) as ProductResearch;
+  if (isSpeciesGroupCandidate(candidate)) {
+    research.confirmedLatinName = speciesGroupLatinName(candidate);
+  }
   research.confirmedGermanName = preferredGermanCommonName(
     research.confirmedLatinName || candidate.latinName,
     research.confirmedGermanName

@@ -7,7 +7,7 @@ import type {
   ResearchSource,
 } from "@/types/shopwarePublishing";
 
-export const RESEARCH_POLICY_VERSION = "plant-research-v4-balanced-winter-trusted-sources";
+export const RESEARCH_POLICY_VERSION = "plant-research-v5-species-groups";
 
 type CachedResearch = {
   version: string;
