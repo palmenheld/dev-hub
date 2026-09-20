@@ -9,6 +9,7 @@ import { renderEbayDescription } from "./description";
 import { withEbayMutationLock } from "./lock";
 import { getEbayCandidate } from "./candidates";
 import { applyEbayCandidateOverrides } from "./candidateOverrides";
+import { getEbayDraftImage } from "./images";
 import { ebayFormDataRequest, ebayRequest } from "./client";
 import { getEbayConnection, missingPublishingSettings } from "./config";
 import { getEbayDraft, getEbaySettings, saveEbayDraft } from "./store";
@@ -147,6 +148,24 @@ function trustedImageHosts() {
 }
 
 async function downloadImage(urlValue: string) {
+  const uploadedImage = urlValue.match(
+    /^\/api\/channels\/ebay\/drafts\/([0-9a-f-]{36})\/images\/([0-9a-f-]{36})$/i
+  );
+  if (uploadedImage) {
+    const stored = await getEbayDraftImage(uploadedImage[1], uploadedImage[2]);
+    if (!stored) throw new Error("Ein hochgeladenes eBay-Bild wurde nicht gefunden.");
+    const extensions: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/gif": "gif",
+      "image/webp": "webp",
+    };
+    return {
+      body: stored.body,
+      contentType: stored.image.contentType,
+      extension: extensions[stored.image.contentType],
+    };
+  }
   const internalImage = urlValue.match(
     /^\/api\/weclapp\/articles\/(\d+)\/images\/(\d+)$/
   );

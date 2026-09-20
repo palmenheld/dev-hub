@@ -227,6 +227,16 @@ export type EbayCandidateOverrides = {
   price?: number;
 };
 
+export type EbayUploadedImage = {
+  id: string;
+  originalName: string;
+  fileName: string;
+  contentType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  size: number;
+  createdAt: string;
+  url: string;
+};
+
 export type EbayListingDraft = {
   id: string;
   status:
@@ -244,6 +254,7 @@ export type EbayListingDraft = {
   publishingSettings: EbayPublishingSettings;
   source: ProductCandidate;
   sourceOverrides?: EbayCandidateOverrides;
+  uploadedImages?: EbayUploadedImage[];
   title: string;
   descriptionHtml: string;
   categoryId: string;

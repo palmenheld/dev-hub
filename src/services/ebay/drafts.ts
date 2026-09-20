@@ -253,7 +253,7 @@ function readOption(
     : fallback;
 }
 
-function defaultListingOptions(source: ProductCandidate): EbayListingOptions {
+export function defaultListingOptions(source: ProductCandidate): EbayListingOptions {
   return {
     subtitle: "",
     condition: "NEW",
@@ -285,7 +285,10 @@ function sanitizeListingOptions(
   if (!CONDITION_VALUES.has(condition)) {
     throw new Error("Der gewählte eBay-Artikelzustand ist ungültig.");
   }
-  const allowedImages = new Set(draft.source.imageUrls);
+  const allowedImages = new Set([
+    ...draft.source.imageUrls,
+    ...(draft.uploadedImages ?? []).map((image) => image.url),
+  ]);
   const requestedImages = Array.isArray(input.imageUrls)
     ? input.imageUrls
         .filter((item): item is string => typeof item === "string")

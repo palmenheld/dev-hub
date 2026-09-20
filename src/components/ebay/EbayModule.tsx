@@ -939,6 +939,56 @@ export default function EbayModule({
     setListingOptions({ imageUrls });
   }
 
+  async function uploadListingImage(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file || !active || !form) return;
+    if (formDirty) {
+      setFeedback({
+        kind: "error",
+        message: "Bitte andere Änderungen zuerst speichern, bevor du ein Bild hochlädst.",
+      });
+      input.value = "";
+      return;
+    }
+    setBusy("image-upload");
+    setFeedback(null);
+    try {
+      const body = new FormData();
+      body.append("image", file);
+      const response = await fetch(
+        `/api/channels/ebay/drafts/${active.id}/images`,
+        { method: "POST", body }
+      );
+      const payload = (await response.json()) as {
+        draft?: EbayListingDraft;
+        error?: string;
+      };
+      if (!response.ok || !payload.draft) {
+        throw new Error(payload.error || "Das Bild konnte nicht hochgeladen werden.");
+      }
+      remember(payload.draft);
+      setFeedback({
+        kind: "success",
+        message:
+          "Das Bild wurde gespeichert und dem eBay-Entwurf hinzugefügt. Bitte Reihenfolge prüfen und den Entwurf anschließend erneut freigeben.",
+      });
+    } catch (error) {
+      setFeedback({
+        kind: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Das Bild konnte nicht hochgeladen werden.",
+      });
+    } finally {
+      input.value = "";
+      setBusy("");
+    }
+  }
+
   function setAspect(name: string, value: string) {
     if (!form) return;
     const values = value
@@ -2499,10 +2549,38 @@ export default function EbayModule({
                     Das erste Bild ist das eBay-Hauptbild. Bis zu 24 Bilder sind möglich.
                   </p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
-                  {listingOptions(form).imageUrls.length}/24 ausgewählt
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    className={`rounded-xl border border-[var(--ph-green-dark)] bg-white px-3 py-2 text-xs font-semibold text-[var(--ph-green-dark)] ${
+                      Boolean(busy) || formDirty || !activeIsEditable
+                        ? "cursor-not-allowed opacity-40"
+                        : "cursor-pointer"
+                    }`}
+                  >
+                    {busy === "image-upload" ? "Bild wird hochgeladen…" : "Bild hochladen"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={uploadListingImage}
+                      disabled={
+                        Boolean(busy) ||
+                        formDirty ||
+                        !activeIsEditable ||
+                        listingOptions(form).imageUrls.length >= 24
+                      }
+                      className="sr-only"
+                    />
+                  </label>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold">
+                    {listingOptions(form).imageUrls.length}/24 ausgewählt
+                  </span>
+                </div>
               </div>
+
+              <p className="mt-2 text-xs text-slate-500">
+                JPG, PNG, WebP oder GIF · maximal 12 MB. Bei ungespeicherten
+                Änderungen bitte zuerst „Korrekturen speichern & prüfen“ wählen.
+              </p>
 
               {listingOptions(form).imageUrls.length ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -2518,6 +2596,15 @@ export default function EbayModule({
                         <p className="truncate text-xs font-semibold">
                           {index === 0 ? "Hauptbild" : `Bild ${index + 1}`}
                         </p>
+                        {form.uploadedImages?.find((image) => image.url === url) && (
+                          <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                            {
+                              form.uploadedImages.find(
+                                (image) => image.url === url
+                              )?.originalName
+                            }
+                          </p>
+                        )}
                         <div className="mt-2 flex flex-wrap gap-1">
                           <button
                             type="button"
@@ -2579,6 +2666,40 @@ export default function EbayModule({
                           />
                           <span className="block px-2 py-1 text-xs font-semibold">
                             Auswählen
+                          </span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {(form.uploadedImages ?? []).some(
+                (image) => !listingOptions(form).imageUrls.includes(image.url)
+              ) && (
+                <div className="mt-4">
+                  <p className="text-sm font-semibold">Weitere hochgeladene Bilder</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {(form.uploadedImages ?? [])
+                      .filter(
+                        (image) =>
+                          !listingOptions(form).imageUrls.includes(image.url)
+                      )
+                      .map((image) => (
+                        <button
+                          type="button"
+                          key={image.id}
+                          onClick={() => toggleListingImage(image.url)}
+                          disabled={listingOptions(form).imageUrls.length >= 24}
+                          className="overflow-hidden rounded-xl border bg-white text-left disabled:opacity-40"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={image.url}
+                            alt={image.originalName}
+                            className="h-24 w-28 object-cover"
+                          />
+                          <span className="block max-w-28 truncate px-2 py-1 text-xs font-semibold">
+                            {image.originalName}
                           </span>
                         </button>
                       ))}
