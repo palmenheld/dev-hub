@@ -1,5 +1,6 @@
 import AppShell from "@/components/layout/AppShell";
 import ShopwareModule from "@/components/shopware/ShopwareModule";
+import ShopwareArticleOverview from "@/components/shopware/ShopwareArticleOverview";
 import { getShopwareConnection } from "@/services/shopware";
 
 export const dynamic = "force-dynamic";
@@ -14,14 +15,19 @@ export default async function ShopwarePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const parameters = await searchParams;
+  const articleId = first(parameters.articleId)?.trim() || "";
   return (
     <AppShell>
-      <ShopwareModule
-        initialConnection={getShopwareConnection()}
-        initialArticleId={first(parameters.articleId)?.trim() || ""}
-        createArticleOnOpen={first(parameters.create) === "1"}
-        initialQuery={first(parameters.query)?.trim() || ""}
-      />
+      {articleId ? (
+        <ShopwareModule
+          initialConnection={getShopwareConnection()}
+          initialArticleId={articleId}
+          createArticleOnOpen={first(parameters.create) === "1"}
+          initialQuery={first(parameters.query)?.trim() || ""}
+        />
+      ) : (
+        <ShopwareArticleOverview initialConnection={getShopwareConnection()} />
+      )}
     </AppShell>
   );
 }

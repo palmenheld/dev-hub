@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       articleId?: unknown;
       replaceExisting?: unknown;
+      templateId?: unknown;
     };
     if (typeof body.articleId !== "string" || !body.articleId.trim()) {
       return NextResponse.json(
@@ -36,7 +37,10 @@ export async function POST(request: Request) {
     }
     const draft = await createProductDraft(
       body.articleId.trim(),
-      body.replaceExisting === true
+      body.replaceExisting === true,
+      typeof body.templateId === "string" && body.templateId.trim()
+        ? body.templateId.trim()
+        : undefined
     );
     return NextResponse.json({ draft });
   } catch (error) {

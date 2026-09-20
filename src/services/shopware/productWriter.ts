@@ -16,6 +16,7 @@ import {
 import { findShopwareProductByNumber } from "./products";
 import { getProductCandidate } from "./publishingCandidates";
 import { withMutationLock } from "./mutationLock";
+import { getShopwareDraftImage } from "./images";
 
 type EntityResponse<T> = { data?: T };
 type TaxRecord = { id?: string; taxRate?: number };
@@ -144,6 +145,27 @@ function hasImageSignature(body: ArrayBuffer, contentType: string) {
 }
 
 async function downloadImage(urlValue: string) {
+  const uploadedImage = urlValue.match(
+    /^\/api\/channels\/shopware\/drafts\/([0-9a-f-]{36})\/images\/([0-9a-f-]{36})$/i
+  );
+  if (uploadedImage) {
+    const stored = await getShopwareDraftImage(uploadedImage[1], uploadedImage[2]);
+    if (!stored) throw new Error("Ein hochgeladenes Shopware-Bild wurde nicht gefunden.");
+    const extensions: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/gif": "gif",
+      "image/webp": "webp",
+    };
+    return {
+      body: stored.body.buffer.slice(
+        stored.body.byteOffset,
+        stored.body.byteOffset + stored.body.byteLength
+      ) as ArrayBuffer,
+      contentType: stored.image.contentType,
+      extension: extensions[stored.image.contentType],
+    };
+  }
   const url = new URL(urlValue);
   if (url.protocol !== "https:") {
     throw new Error("Bilder dürfen nur über HTTPS importiert werden.");
@@ -213,7 +235,7 @@ async function uploadImages(draft: ShopwareProductDraft) {
   }> = [];
 
   try {
-    for (const [position, imageUrl] of draft.source.imageUrls
+    for (const [position, imageUrl] of (draft.selectedImageUrls ?? draft.source.imageUrls)
       .slice(0, 8)
       .entries()) {
       const image = await downloadImage(imageUrl);
@@ -349,10 +371,8 @@ async function publishDraftUnlocked(draftId: string) {
   }
   if (
     !source.articleNumber ||
-    source.price === undefined ||
-    source.price === null ||
-    !Number.isFinite(source.price) ||
-    source.price < 0 ||
+    !Number.isFinite(draft.price ?? source.price) ||
+    (draft.price ?? source.price ?? 0) <= 0 ||
     !source.heightCm ||
     !source.shippingClass
   ) {
@@ -367,6 +387,8 @@ async function publishDraftUnlocked(draftId: string) {
   const settings = requireSettings(await getPublishingSettings());
   await ensureCustomFields();
   const rate = await taxRate(settings.taxId);
+  const sellingPrice = draft.price ?? source.price!;
+  const sellingStock = draft.stock ?? Math.max(0, Math.floor(source.stock ?? 0));
   const productId = shopwareId();
   await saveDraft({
     ...draft,
@@ -398,14 +420,14 @@ async function publishDraftUnlocked(draftId: string) {
         metaTitle: draft.research.metaTitle,
         metaDescription: draft.research.metaDescription,
         keywords: draft.research.keywords.join(", "),
-        active: false,
-        stock: Math.max(0, Math.floor(source.stock ?? 0)),
+        active: draft.active === true,
+        stock: sellingStock,
         taxId: settings.taxId,
         price: [
           {
             currencyId: settings.currencyId,
-            gross: roundPrice(source.price),
-            net: roundPrice(source.price / (1 + rate / 100)),
+            gross: roundPrice(sellingPrice),
+            net: roundPrice(sellingPrice / (1 + rate / 100)),
             linked: true,
           },
         ],

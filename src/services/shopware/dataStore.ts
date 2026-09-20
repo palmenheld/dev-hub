@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   ShopwareProductDraft,
+  ShopwareProductTemplate,
   ShopwarePublishingSettings,
   WeclappFieldMap,
 } from "@/types/shopwarePublishing";
@@ -17,7 +18,7 @@ const DEFAULT_FIELD_MAP: WeclappFieldMap = {
   stock: "availableForSaleQuantity",
 };
 
-function dataDirectory() {
+export function getShopwareDataDirectory() {
   return (
     process.env.SHOPWARE_DATA_DIR?.trim() ||
     path.join(process.cwd(), ".data", "shopware")
@@ -45,18 +46,18 @@ async function writeJson(filePath: string, value: unknown) {
 
 export async function getFieldMap(): Promise<WeclappFieldMap> {
   const stored = await readJson<Partial<WeclappFieldMap>>(
-    path.join(dataDirectory(), "field-map.json")
+    path.join(getShopwareDataDirectory(), "field-map.json")
   );
   return { ...DEFAULT_FIELD_MAP, ...(stored ?? {}) };
 }
 
 export async function saveFieldMap(fieldMap: WeclappFieldMap) {
-  await writeJson(path.join(dataDirectory(), "field-map.json"), fieldMap);
+  await writeJson(path.join(getShopwareDataDirectory(), "field-map.json"), fieldMap);
 }
 
 export async function getPublishingSettings(): Promise<ShopwarePublishingSettings> {
   const stored = await readJson<Partial<ShopwarePublishingSettings>>(
-    path.join(dataDirectory(), "publishing-settings.json")
+    path.join(getShopwareDataDirectory(), "publishing-settings.json")
   );
   return {
     taxId: stored?.taxId ?? "",
@@ -69,14 +70,14 @@ export async function savePublishingSettings(
   settings: ShopwarePublishingSettings
 ) {
   await writeJson(
-    path.join(dataDirectory(), "publishing-settings.json"),
+    path.join(getShopwareDataDirectory(), "publishing-settings.json"),
     settings
   );
 }
 
 export async function saveDraft(draft: ShopwareProductDraft) {
   await writeJson(
-    path.join(dataDirectory(), "drafts", `${draft.id}.json`),
+    path.join(getShopwareDataDirectory(), "drafts", `${draft.id}.json`),
     draft
   );
 }
@@ -84,7 +85,7 @@ export async function saveDraft(draft: ShopwareProductDraft) {
 
 export async function getSyncSettings(): Promise<ShopwareSyncSettings> {
   const stored = await readJson<unknown>(
-    path.join(dataDirectory(), "sync-settings.json")
+    path.join(getShopwareDataDirectory(), "sync-settings.json")
   );
   return normalizeSyncSettings(stored);
 }
@@ -92,13 +93,13 @@ export async function getSyncSettings(): Promise<ShopwareSyncSettings> {
 export async function saveSyncSettings(input: unknown) {
   const settings = normalizeSyncSettings(input);
   await writeJson(
-    path.join(dataDirectory(), "sync-settings.json"),
+    path.join(getShopwareDataDirectory(), "sync-settings.json"),
     settings
   );
   return settings;
 }
 export async function listDrafts(limit = 50) {
-  const directory = path.join(dataDirectory(), "drafts");
+  const directory = path.join(getShopwareDataDirectory(), "drafts");
   let fileNames: string[];
   try {
     fileNames = await readdir(directory);
@@ -135,6 +136,22 @@ export async function listDrafts(limit = 50) {
 export async function getDraft(id: string) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   return readJson<ShopwareProductDraft>(
-    path.join(dataDirectory(), "drafts", `${id}.json`)
+    path.join(getShopwareDataDirectory(), "drafts", `${id}.json`)
+  );
+}
+
+export async function listProductTemplates() {
+  const stored = await readJson<ShopwareProductTemplate[]>(
+    path.join(getShopwareDataDirectory(), "product-templates.json")
+  );
+  return (stored ?? []).sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt)
+  );
+}
+
+export async function saveProductTemplates(templates: ShopwareProductTemplate[]) {
+  await writeJson(
+    path.join(getShopwareDataDirectory(), "product-templates.json"),
+    templates
   );
 }

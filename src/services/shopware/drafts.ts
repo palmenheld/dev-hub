@@ -11,6 +11,7 @@ import { isAllowedResearchSource, researchProduct } from "./research";
 import { getDraft, listDrafts, saveDraft } from "./dataStore";
 import { withMutationLock } from "./mutationLock";
 import { customerSafePlantText } from "./customerText";
+import { applyProductTemplate, resolveProductTemplate } from "./templates";
 
 const REQUIRED_BLOCKS = [
   "identity",
@@ -156,7 +157,24 @@ export function validateDraft(
     errors.push("Weniger als drei Quellen wurden dokumentiert.");
   }
 
-  return { valid: errors.length === 0, errors, warnings };
+  const overridableErrors = errors.filter((error) =>
+    /(?:nur \d+ von \d+ unabhängigen Quellen belegt|unbekannte Quellenverweise|weniger als drei Quellen wurden dokumentiert)/iu.test(
+      error
+    )
+  );
+  const blockingErrors = errors.filter(
+    (error) => !overridableErrors.includes(error)
+  );
+  return {
+    valid: blockingErrors.length === 0,
+    errors: blockingErrors,
+    warnings: [
+      ...overridableErrors.map(
+        (error) => `Manuell prüfbarer Quellenhinweis: ${error}`
+      ),
+      ...warnings,
+    ],
+  };
 }
 
 function citationLinks(sourceIds: string[], sources: ResearchSource[]) {
@@ -218,7 +236,8 @@ function draftTitle(
 
 async function createProductDraftUnlocked(
   articleId: string,
-  replaceExisting: boolean
+  replaceExisting: boolean,
+  templateId?: string
 ) {
   const existing = (await listDrafts(1000)).find(
     (item) => item.source.articleId === articleId
@@ -247,7 +266,27 @@ async function createProductDraftUnlocked(
   }
 
   const { research, sources } = await researchProduct(candidate);
-  const validation = validateDraft(research, sources);
+  const generatedTitle = draftTitle(
+    research.confirmedGermanName || candidate.germanName,
+    candidate.heightLabel ?? String(Math.round(candidate.heightCm)) + " cm",
+    candidate.potSize
+  );
+  const template = await resolveProductTemplate(templateId);
+  const templateValues = template
+    ? applyProductTemplate(template, {
+        generatedTitle,
+        candidate,
+        germanName: research.confirmedGermanName || candidate.germanName,
+        latinName: research.confirmedLatinName || candidate.latinName,
+        price: candidate.price!,
+        stock: Math.max(0, Math.floor(candidate.stock ?? 0)),
+      })
+    : null;
+  const finalResearch =
+    templateValues?.keywords.length
+      ? { ...research, keywords: templateValues.keywords }
+      : research;
+  const validation = validateDraft(finalResearch, sources);
   const now = new Date().toISOString();
   const draft: ShopwareProductDraft = {
     id: existing?.id ?? randomUUID(),
@@ -255,16 +294,19 @@ async function createProductDraftUnlocked(
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     source: candidate,
-    title: draftTitle(
-      research.confirmedGermanName || candidate.germanName,
-      candidate.heightLabel ?? String(Math.round(candidate.heightCm)) + " cm",
-      candidate.potSize
-    ),
-    descriptionHtml: renderDescription(research, sources),
-    research,
+    price: templateValues?.price ?? candidate.price,
+    stock:
+      templateValues?.stock ?? Math.max(0, Math.floor(candidate.stock ?? 0)),
+    active: templateValues?.active ?? false,
+    selectedImageUrls: candidate.imageUrls.slice(0, 20),
+    title: templateValues?.title ?? generatedTitle,
+    descriptionHtml: renderDescription(finalResearch, sources),
+    research: finalResearch,
     sources,
     validation,
     manuallyEdited: false,
+    templateId: template?.id,
+    templateName: template?.name,
   };
 
   await saveDraft(draft);
@@ -282,6 +324,10 @@ type EditableDraftInput = {
   minTemperatureC?: unknown;
   blocks?: unknown;
   care?: unknown;
+  price?: unknown;
+  stock?: unknown;
+  active?: unknown;
+  selectedImageUrls?: unknown;
 };
 
 function correctedText(
@@ -347,6 +393,29 @@ async function updateProductDraftUnlocked(
   if (!Array.isArray(input.keywords) || input.keywords.length > 15) {
     throw new Error("Die SEO-Schlagwörter sind ungültig.");
   }
+  const price = Number(input.price ?? draft.price ?? draft.source.price);
+  if (!Number.isFinite(price) || price <= 0 || price > 1_000_000) {
+    throw new Error("Der Shopware-Verkaufspreis ist ungültig.");
+  }
+  const stock = Number(input.stock ?? draft.stock ?? draft.source.stock ?? 0);
+  if (!Number.isInteger(stock) || stock < 0 || stock > 1_000_000) {
+    throw new Error("Der Shopware-Bestand ist ungültig.");
+  }
+  if (input.active !== undefined && typeof input.active !== "boolean") {
+    throw new Error("Der Shopware-Aktivstatus ist ungültig.");
+  }
+  const allowedImages = new Set([
+    ...draft.source.imageUrls,
+    ...(draft.uploadedImages ?? []).map((image) => image.url),
+  ]);
+  const selectedImageUrls = Array.isArray(input.selectedImageUrls)
+    ? [...new Set(
+        input.selectedImageUrls.filter(
+          (item): item is string =>
+            typeof item === "string" && allowedImages.has(item)
+        )
+      )].slice(0, 20)
+    : draft.selectedImageUrls ?? draft.source.imageUrls.slice(0, 20);
 
   const research: ProductResearch = {
     ...draft.research,
@@ -415,6 +484,10 @@ async function updateProductDraftUnlocked(
   const validation = validateDraft(research, draft.sources);
   const updated: ShopwareProductDraft = {
     ...draft,
+    price,
+    stock,
+    active: input.active === true,
+    selectedImageUrls,
     title: correctedText(input.title, "Produkttitel", 4, 180),
     research,
     descriptionHtml: renderDescription(research, draft.sources),
@@ -450,9 +523,110 @@ async function approveProductDraftUnlocked(draftId: string) {
   return approved;
 }
 
+function sameNumber(left?: number, right?: number) {
+  if (left === undefined || right === undefined) return left === right;
+  return Math.abs(left - right) < 0.005;
+}
+
+function refreshedSourceFields(
+  previous: ShopwareProductDraft["source"],
+  current: ShopwareProductDraft["source"]
+) {
+  const changes: string[] = [];
+  const add = (changed: boolean, label: string) => {
+    if (changed) changes.push(label);
+  };
+  add(previous.articleNumber !== current.articleNumber, "Artikelnummer");
+  add(previous.germanName !== current.germanName, "deutscher Name");
+  add(previous.latinName !== current.latinName, "lateinischer Name");
+  add(
+    previous.heightCm !== current.heightCm ||
+      previous.heightMinCm !== current.heightMinCm ||
+      previous.heightMaxCm !== current.heightMaxCm ||
+      previous.heightLabel !== current.heightLabel,
+    "Größe"
+  );
+  add(
+    previous.potSize !== current.potSize ||
+      previous.potDiameterCm !== current.potDiameterCm,
+    "Topfmaß"
+  );
+  add(!sameNumber(previous.price, current.price), "Standardpreis");
+  add(!sameNumber(previous.stock, current.stock), "Bestand");
+  add(previous.active !== current.active, "Aktivstatus");
+  add(
+    JSON.stringify(previous.imageUrls) !== JSON.stringify(current.imageUrls),
+    "Bilder"
+  );
+  add(
+    previous.articleCategoryId !== current.articleCategoryId ||
+      previous.articleCategoryName !== current.articleCategoryName,
+    "Artikelkategorie"
+  );
+  return changes;
+}
+
+async function refreshProductDraftUnlocked(draftId: string) {
+  const draft = await getDraft(draftId);
+  if (!draft) throw new Error("Der Produktentwurf wurde nicht gefunden.");
+  if (draft.status !== "ready" && draft.status !== "blocked") {
+    throw new Error(
+      "Weclapp-Daten können nur bei einem noch nicht übertragenen Entwurf neu geladen werden."
+    );
+  }
+  const source = await getProductCandidate(draft.source.articleId);
+  const changes = refreshedSourceFields(draft.source, source);
+  const contentChanged = changes.some((field) =>
+    ["deutscher Name", "lateinischer Name", "Größe", "Topfmaß"].includes(field)
+  );
+  if (!changes.length) return { draft, changes, contentChanged };
+
+  const previousSelected = draft.selectedImageUrls ?? draft.source.imageUrls;
+  const previousSourceUrls = new Set(draft.source.imageUrls);
+  const currentSourceUrls = new Set(source.imageUrls);
+  const uploadedUrls = new Set(
+    (draft.uploadedImages ?? []).map((image) => image.url)
+  );
+  const selectedImageUrls = [
+    ...previousSelected.filter(
+      (url) => currentSourceUrls.has(url) || uploadedUrls.has(url)
+    ),
+    ...source.imageUrls.filter((url) => !previousSourceUrls.has(url)),
+  ].filter((url, index, all) => all.indexOf(url) === index).slice(0, 20);
+  const priceWasAutomatic = sameNumber(
+    draft.price ?? draft.source.price,
+    draft.source.price
+  );
+  const previousAutomaticStock = Math.max(
+    0,
+    Math.floor(draft.source.stock ?? 0)
+  );
+  const stockWasAutomatic =
+    (draft.stock ?? previousAutomaticStock) === previousAutomaticStock;
+  const next: ShopwareProductDraft = {
+    ...draft,
+    source,
+    price: priceWasAutomatic ? source.price : draft.price,
+    stock: stockWasAutomatic
+      ? Math.max(0, Math.floor(source.stock ?? 0))
+      : draft.stock,
+    selectedImageUrls:
+      draft.source.imageUrls.length === 0 && selectedImageUrls.length === 0
+        ? source.imageUrls.slice(0, 20)
+        : selectedImageUrls,
+    approvedAt: undefined,
+    updatedAt: new Date().toISOString(),
+    lastError: undefined,
+  };
+  next.status = next.validation.valid ? "ready" : "blocked";
+  await saveDraft(next);
+  return { draft: next, changes, contentChanged };
+}
+
 export async function createProductDraft(
   articleId: string,
-  replaceExisting = false
+  replaceExisting = false,
+  templateId?: string
 ) {
   const existing = (await listDrafts(1000)).find(
     (item) => item.source.articleId === articleId
@@ -461,7 +635,7 @@ export async function createProductDraft(
     ? "product-draft:" + existing.id
     : "product-article:" + articleId;
   return withMutationLock(lockKey, () =>
-    createProductDraftUnlocked(articleId, replaceExisting)
+    createProductDraftUnlocked(articleId, replaceExisting, templateId)
   );
 }
 
@@ -477,5 +651,11 @@ export async function updateProductDraft(
 export async function approveProductDraft(draftId: string) {
   return withMutationLock("product-draft:" + draftId, () =>
     approveProductDraftUnlocked(draftId)
+  );
+}
+
+export async function refreshProductDraft(draftId: string) {
+  return withMutationLock("product-draft:" + draftId, () =>
+    refreshProductDraftUnlocked(draftId)
   );
 }

@@ -99,6 +99,29 @@ export type DraftValidation = {
   warnings: string[];
 };
 
+export type ShopwareUploadedImage = {
+  id: string;
+  originalName: string;
+  fileName: string;
+  contentType: "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+  size: number;
+  createdAt: string;
+  url: string;
+};
+
+export type ShopwareProductTemplate = {
+  id: string;
+  name: string;
+  titlePattern: string;
+  priceAdjustmentPercent: number;
+  stockLimit?: number;
+  active: boolean;
+  keywords: string[];
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ShopwareProductDraft = {
   id: string;
   status:
@@ -110,6 +133,13 @@ export type ShopwareProductDraft = {
   createdAt: string;
   updatedAt: string;
   source: ProductCandidate;
+  price?: number;
+  stock?: number;
+  active?: boolean;
+  selectedImageUrls?: string[];
+  uploadedImages?: ShopwareUploadedImage[];
+  templateId?: string;
+  templateName?: string;
   title: string;
   descriptionHtml: string;
   research: ProductResearch;
