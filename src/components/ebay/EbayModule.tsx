@@ -1054,6 +1054,53 @@ export default function EbayModule({
     }
   }
 
+  async function refreshWeclappData() {
+    if (!active || formDirty) return;
+    if (
+      !window.confirm(
+        "Artikelname, Größe, Topfmaß, Standardpreis, Bestand und Bilder jetzt neu aus Weclapp laden? Manuelle Ergänzungen, hochgeladene Bilder und bewusst geänderte eBay-Werte bleiben erhalten."
+      )
+    ) return;
+    setBusy("refresh-weclapp");
+    setFeedback(null);
+    try {
+      const response = await fetch(
+        `/api/channels/ebay/drafts/${active.id}/refresh-weclapp`,
+        emptyJsonPost()
+      );
+      const payload = (await response.json()) as {
+        draft?: EbayListingDraft;
+        changes?: string[];
+        contentChanged?: boolean;
+        error?: string;
+      };
+      if (!response.ok || !payload.draft) {
+        throw new Error(
+          payload.error || "Die Weclapp-Daten konnten nicht neu geladen werden."
+        );
+      }
+      remember(payload.draft);
+      const changes = payload.changes ?? [];
+      setFeedback({
+        kind: "success",
+        message: !changes.length
+          ? "Die Weclapp-Daten sind bereits aktuell."
+          : `Aus Weclapp aktualisiert: ${changes.join(", ")}. Freigabe wurde zurückgesetzt.${
+              payload.contentChanged
+                ? " Bitte Titel und Beschreibung prüfen und bei Bedarf den KI-Text neu erzeugen."
+                : ""
+            }`,
+      });
+    } catch (error) {
+      setFeedback({
+        kind: "error",
+        message: error instanceof Error ? error.message : "Unbekannter Fehler",
+      });
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function act(
     action:
       | "approve"
@@ -3081,6 +3128,16 @@ export default function EbayModule({
             )}
 
             <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={refreshWeclappData}
+                disabled={Boolean(busy) || formDirty || !activeIsEditable}
+                className="rounded-xl border border-green-300 bg-green-50 px-4 py-2.5 font-semibold text-green-900 disabled:opacity-40"
+              >
+                {busy === "refresh-weclapp"
+                  ? "Weclapp-Daten werden geladen…"
+                  : "Weclapp-Daten neu laden"}
+              </button>
               <button
                 type="button"
                 onClick={() => act("regenerate")}

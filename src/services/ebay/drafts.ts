@@ -956,6 +956,141 @@ async function regenerateCopyUnlocked(id: string) {
   return next;
 }
 
+function automaticEbayPrice(candidate: ProductCandidate) {
+  if (!candidate.price || !candidate.heightCm) return undefined;
+  try {
+    return ebaySuggestedPrice(candidate.price, candidate.heightCm);
+  } catch {
+    return undefined;
+  }
+}
+
+function sameNumber(left?: number, right?: number) {
+  if (left === undefined || right === undefined) return left === right;
+  return Math.abs(left - right) < 0.005;
+}
+
+function refreshedCandidateFields(
+  previous: ProductCandidate,
+  current: ProductCandidate
+) {
+  const changes: string[] = [];
+  const add = (changed: boolean, label: string) => {
+    if (changed) changes.push(label);
+  };
+  add(previous.articleNumber !== current.articleNumber, "Artikelnummer");
+  add(previous.germanName !== current.germanName, "deutscher Name");
+  add(previous.latinName !== current.latinName, "lateinischer Name");
+  add(
+    previous.heightCm !== current.heightCm ||
+      previous.heightMinCm !== current.heightMinCm ||
+      previous.heightMaxCm !== current.heightMaxCm ||
+      previous.heightLabel !== current.heightLabel,
+    "Größe"
+  );
+  add(
+    previous.potSize !== current.potSize ||
+      previous.potDiameterCm !== current.potDiameterCm,
+    "Topfmaß"
+  );
+  add(!sameNumber(previous.price, current.price), "Standardpreis");
+  add(!sameNumber(previous.stock, current.stock), "Bestand");
+  add(previous.active !== current.active, "Aktivstatus");
+  add(
+    JSON.stringify(previous.imageUrls) !== JSON.stringify(current.imageUrls),
+    "Bilder"
+  );
+  add(
+    previous.articleCategoryId !== current.articleCategoryId ||
+      previous.articleCategoryName !== current.articleCategoryName,
+    "Artikelkategorie"
+  );
+  return changes;
+}
+
+async function refreshWeclappSourceUnlocked(id: string) {
+  const draft = await getEbayDraft(id);
+  if (!draft) throw new Error("Der eBay-Entwurf wurde nicht gefunden.");
+  if (draft.status !== "ready" && draft.status !== "blocked") {
+    throw new Error(
+      "Weclapp-Daten können nur bei einem noch nicht veröffentlichten Entwurf neu geladen werden."
+    );
+  }
+
+  const candidate = applyEbayCandidateOverrides(
+    await getEbayCandidate(draft.source.articleId),
+    draft.sourceOverrides
+  );
+  const changes = refreshedCandidateFields(draft.source, candidate);
+  const contentChanged = changes.some((field) =>
+    ["deutscher Name", "lateinischer Name", "Größe", "Topfmaß"].includes(field)
+  );
+  if (!changes.length) return { draft, changes, contentChanged };
+
+  const currentOptions = draft.options ?? defaultListingOptions(draft.source);
+  const uploadedUrls = new Set(
+    (draft.uploadedImages ?? []).map((image) => image.url)
+  );
+  const previousSourceUrls = new Set(draft.source.imageUrls);
+  const currentSourceUrls = new Set(candidate.imageUrls);
+  const retainedSelection = currentOptions.imageUrls.filter(
+    (url) => uploadedUrls.has(url) || currentSourceUrls.has(url)
+  );
+  const newlyAvailableImages = candidate.imageUrls.filter(
+    (url) => !previousSourceUrls.has(url)
+  );
+  const refreshedImages = [
+    ...retainedSelection,
+    ...(draft.source.imageUrls.length === 0
+      ? candidate.imageUrls
+      : newlyAvailableImages),
+  ];
+
+  const previousAutomaticPrice = automaticEbayPrice(draft.source);
+  const currentAutomaticPrice = automaticEbayPrice(candidate);
+  const priceWasAutomatic =
+    previousAutomaticPrice !== undefined &&
+    sameNumber(draft.price, previousAutomaticPrice);
+  const previousAutomaticQuantity = Math.max(
+    0,
+    Math.floor(draft.source.stock ?? 0)
+  );
+  const quantityWasAutomatic = draft.quantity === previousAutomaticQuantity;
+  const settings = await getEbaySettings();
+  const [definitions, conditions] = draft.categoryId
+    ? await Promise.all([
+        getEbayCategoryAspects(draft.categoryId, settings.marketplaceId),
+        getEbayCategoryConditions(draft.categoryId, settings.marketplaceId),
+      ])
+    : [[], []];
+  const next: EbayListingDraft = {
+    ...draft,
+    source: candidate,
+    options: {
+      ...currentOptions,
+      imageUrls: [...new Set(refreshedImages)].slice(0, 24),
+    },
+    price:
+      priceWasAutomatic && currentAutomaticPrice !== undefined
+        ? currentAutomaticPrice
+        : draft.price,
+    quantity: quantityWasAutomatic
+      ? Math.max(0, Math.floor(candidate.stock ?? 0))
+      : draft.quantity,
+    approvedAt: undefined,
+    lastError: undefined,
+    updatedAt: new Date().toISOString(),
+  };
+  next.validation = validateEbayDraft(
+    next,
+    definitions,
+    conditions.map((condition) => condition.value)
+  );
+  next.status = next.validation.valid ? "ready" : "blocked";
+  await saveEbayDraft(next);
+  return { draft: next, changes, contentChanged };
+}
+
 export async function createEbayDraft(
   articleId: string,
   replaceExisting = false,
@@ -990,5 +1125,11 @@ export function revalidateEbayDraft(id: string) {
 export function regenerateEbayCopy(id: string) {
   return withEbayMutationLock(`ebay-draft:${id}`, () =>
     regenerateCopyUnlocked(id)
+  );
+}
+
+export function refreshEbayDraftFromWeclapp(id: string) {
+  return withEbayMutationLock(`ebay-draft:${id}`, () =>
+    refreshWeclappSourceUnlocked(id)
   );
 }
