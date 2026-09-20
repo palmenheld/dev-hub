@@ -375,14 +375,17 @@ export function parsePotDiameter(value: unknown): ParsedPotDiameter | undefined 
       };
     }
   }
-  const match = text.match(/\b([cvm])\s*[-:]?\s*(\d{1,3})(?!\d)/i);
+  const match = text.match(/\b([cvmd])\s*[-:]?\s*(\d{1,4})(?!\d)/i);
   if (!match) return undefined;
   const size = Number(match[2]);
-  if (!Number.isFinite(size) || size < 1 || size > 200) {
+  const prefix = match[1].toUpperCase();
+  const isVolume = prefix === "C" || prefix === "M";
+  const maximum = isVolume ? 2_000 : 300;
+  if (!Number.isFinite(size) || size < 1 || size > maximum) {
     return undefined;
   }
-  const code = match[1].toUpperCase() + String(size);
-  if (size <= 15) {
+  const code = prefix + String(size);
+  if (isVolume) {
     return {
       volumeLiters: size,
       code,
