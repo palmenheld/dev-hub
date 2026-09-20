@@ -5,7 +5,10 @@ import {
   customerSafePlantText,
 } from "@/services/shopware/customerText";
 import { preferredGermanCommonName } from "@/services/shopware/plantNames";
-import { renderEbayDescription } from "./description";
+import {
+  ebayDescriptionForApi,
+  renderEbayDescription,
+} from "./description";
 import { withEbayMutationLock } from "./lock";
 import { getEbayCandidate } from "./candidates";
 import { applyEbayCandidateOverrides } from "./candidateOverrides";
@@ -318,6 +321,13 @@ async function publishUnlocked(id: string) {
       `Weclapp-Daten haben sich geändert (${changes.join(", ")}). Bitte den Entwurf neu erstellen.`
     );
   }
+  const descriptionHtml = ebayDescriptionForApi(
+    customerSafePlantHtml(draft.descriptionHtml)
+  );
+  const transmittingDraft: EbayListingDraft = {
+    ...draft,
+    descriptionHtml,
+  };
   const sku = draft.source.articleNumber;
   const encodedSku = encodeURIComponent(sku);
   const [existingItem, existingOffers] = await Promise.all([
@@ -334,7 +344,7 @@ async function publishUnlocked(id: string) {
   }
 
   const publishing: EbayListingDraft = {
-    ...draft,
+    ...transmittingDraft,
     status: "publishing",
     updatedAt: new Date().toISOString(),
     lastError: undefined,
@@ -387,7 +397,7 @@ async function publishUnlocked(id: string) {
           product: {
             title: draft.title,
             ...(options?.subtitle ? { subtitle: options.subtitle } : {}),
-            description: draft.descriptionHtml,
+            description: descriptionHtml,
             aspects: draft.aspects,
             imageUrls,
             ...(options?.brand ? { brand: options.brand } : {}),
@@ -412,7 +422,7 @@ async function publishUnlocked(id: string) {
           availableQuantity: draft.quantity,
           categoryId: draft.categoryId,
           merchantLocationKey: settings.merchantLocationKey,
-          listingDescription: draft.descriptionHtml,
+          listingDescription: descriptionHtml,
           listingPolicies: {
             fulfillmentPolicyId: settings.fulfillmentPolicyId,
             paymentPolicyId: settings.paymentPolicyId,
@@ -473,7 +483,7 @@ async function publishUnlocked(id: string) {
     }
 
     const complete: EbayListingDraft = {
-      ...draft,
+      ...transmittingDraft,
       status: "published",
       offerId,
       listingId: published.listingId,
@@ -499,7 +509,7 @@ async function publishUnlocked(id: string) {
       }
       if (inventoryAbsent) {
         const retryable: EbayListingDraft = {
-          ...draft,
+          ...transmittingDraft,
           status: "ready",
           updatedAt: new Date().toISOString(),
           lastError: message,
@@ -519,7 +529,7 @@ async function publishUnlocked(id: string) {
             { method: "DELETE" }
           );
           const retryable: EbayListingDraft = {
-            ...draft,
+            ...transmittingDraft,
             status: "ready",
             updatedAt: new Date().toISOString(),
             lastError: message,
@@ -541,7 +551,7 @@ async function publishUnlocked(id: string) {
         );
         if (offer?.listing?.listingId) {
           const complete: EbayListingDraft = {
-            ...draft,
+            ...transmittingDraft,
             status: "published",
             offerId,
             listingId: offer.listing.listingId,
@@ -556,7 +566,7 @@ async function publishUnlocked(id: string) {
     }
 
     const uncertain: EbayListingDraft = {
-      ...draft,
+      ...transmittingDraft,
       status: "reconciliation_required",
       pendingOfferId: offerId || undefined,
       updatedAt: new Date().toISOString(),
@@ -941,7 +951,7 @@ async function sanitizePublishedCustomerCopyUnlocked(id: string) {
     return next;
   };
   const title = replaceCustomerName(customerSafePlantText(draft.title));
-  const descriptionHtml = replaceCustomerName(
+  const descriptionHtml = ebayDescriptionForApi(replaceCustomerName(
     draft.generatedCopy
       ? renderEbayDescription(
           draft.generatedCopy,
@@ -952,7 +962,7 @@ async function sanitizePublishedCustomerCopyUnlocked(id: string) {
           }
         )
       : customerSafePlantHtml(draft.descriptionHtml)
-  );
+  ));
   if (
     title === draft.title &&
     descriptionHtml === draft.descriptionHtml &&
