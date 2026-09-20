@@ -206,6 +206,7 @@ export type EbayDraftJob = {
 };
 
 export type EbayCandidateInput = {
+  articleNumber?: unknown;
   germanName?: unknown;
   latinName?: unknown;
   height?: unknown;
@@ -214,6 +215,7 @@ export type EbayCandidateInput = {
 };
 
 export type EbayCandidateOverrides = {
+  articleNumber?: string;
   germanName?: string;
   latinName?: string;
   heightCm?: number;

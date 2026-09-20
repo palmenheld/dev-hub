@@ -23,6 +23,7 @@ import type { ProductCandidate } from "@/types/shopwarePublishing";
 
 type Feedback = { kind: "success" | "error"; message: string };
 type CandidateInputForm = {
+  articleNumber: string;
   germanName: string;
   latinName: string;
   height: string;
@@ -58,6 +59,7 @@ function money(value?: number, currency = "EUR") {
 
 function candidateInputForm(candidate: ProductCandidate): CandidateInputForm {
   return {
+    articleNumber: candidate.articleNumber || "",
     germanName: candidate.germanName || "",
     latinName: candidate.latinName || "",
     height: candidate.heightLabel || "",
@@ -406,6 +408,7 @@ export default function EbayModule({
   async function createDirectDraft() {
     if (!pendingCandidate || !candidateForm) return;
     const required = [
+      ["Artikelnummer", candidateForm.articleNumber],
       ["deutscher Name", candidateForm.germanName],
       ["lateinischer Name", candidateForm.latinName],
       ["Höhe", candidateForm.height],
@@ -1333,7 +1336,7 @@ export default function EbayModule({
               </p>
             </div>
             <div className="rounded-xl bg-slate-50 px-4 py-2 text-sm">
-              <strong>SKU {pendingCandidate.articleNumber}</strong>
+              <strong>Weclapp-ID {pendingCandidate.articleId}</strong>
               <div className="text-slate-500">
                 {pendingCandidate.imageUrls.length} Weclapp-Bild(er)
               </div>
@@ -1341,6 +1344,22 @@ export default function EbayModule({
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <label className="text-sm font-semibold">
+              Artikelnummer / SKU <span className="text-red-700">*</span>
+              <input
+                value={candidateForm.articleNumber}
+                onChange={(event) =>
+                  updateCandidateForm("articleNumber", event.target.value)
+                }
+                maxLength={80}
+                placeholder="z. B. 100000778"
+                className={`mt-1 block w-full rounded-xl border px-3 py-2.5 font-normal ${
+                  candidateForm.articleNumber.trim()
+                    ? "border-slate-300"
+                    : "border-red-400 bg-red-50"
+                }`}
+              />
+            </label>
             <label className="text-sm font-semibold">
               Deutscher Name <span className="text-red-700">*</span>
               <input

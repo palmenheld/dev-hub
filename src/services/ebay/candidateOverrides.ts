@@ -10,6 +10,7 @@ import {
 } from "@/services/shopware/fieldMapping";
 
 const MANAGED_MISSING = new Set([
+  "Artikelnummer",
   "deutscher Name",
   "lateinischer Name",
   "Höhe",
@@ -40,6 +41,9 @@ export function applyEbayCandidateOverrides(
   if (!overrides) return candidate;
   const next: ProductCandidate = {
     ...candidate,
+    ...(overrides.articleNumber
+      ? { articleNumber: overrides.articleNumber }
+      : {}),
     ...(overrides.germanName ? { germanName: overrides.germanName } : {}),
     ...(overrides.latinName ? { latinName: overrides.latinName } : {}),
     ...(overrides.heightCm
@@ -68,6 +72,7 @@ export function applyEbayCandidateOverrides(
       : {}),
   };
   const missing = candidate.missing.filter((item) => !MANAGED_MISSING.has(item));
+  if (!next.articleNumber) missing.push("Artikelnummer");
   if (!next.germanName) missing.push("deutscher Name");
   if (!next.latinName) missing.push("lateinischer Name");
   if (!next.heightCm) missing.push("Höhe");
@@ -98,6 +103,7 @@ export function prepareEbayCandidate(
   }
 
   const germanName = inputText(input.germanName, 240);
+  const articleNumber = inputText(input.articleNumber, 80);
   const latinName = inputText(input.latinName, 240);
   const heightText = inputText(input.height, 80);
   const potSize = inputText(input.potSize, 80);
@@ -105,6 +111,9 @@ export function prepareEbayCandidate(
   const price = inputPrice(input.price);
   const overrides: EbayCandidateOverrides = {};
 
+  if (articleNumber && articleNumber !== candidate.articleNumber) {
+    overrides.articleNumber = articleNumber;
+  }
   if (germanName && germanName !== candidate.germanName) {
     overrides.germanName = germanName;
   }
