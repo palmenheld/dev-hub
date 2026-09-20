@@ -453,7 +453,7 @@ export default function EbayModule({
       setFeedback({
         kind: "success",
         message: draft.contentReuse
-          ? `Der Entwurf wurde aus dem vorhandenen Pflanzeninhalt der SKU ${draft.contentReuse.sourceArticleNumber} übernommen und mit den geprüften Artikeldaten angepasst.`
+          ? `Der Entwurf wurde aus dem vorhandenen Pflanzeninhalt in ${draft.contentReuse.sourceChannel === "shopware" ? "Shopware" : draft.contentReuse.sourceChannel === "kleinanzeigen" ? "Kleinanzeigen" : "eBay"} (SKU ${draft.contentReuse.sourceArticleNumber}) übernommen. Nur Stil, Länge und Angebotsdaten wurden angepasst.`
           : "Der eBay-Entwurf wurde erstellt. Du kannst jetzt alle Angaben prüfen und bearbeiten.",
       });
     } catch (error) {
@@ -2301,7 +2301,7 @@ export default function EbayModule({
                 )}
                 {form.contentReuse && (
                   <p className="mt-1 text-xs font-semibold text-[var(--ph-green)]">
-                    Pflanzeninhalt übernommen aus SKU {form.contentReuse.sourceArticleNumber}
+                    Pflanzeninhalt aus {form.contentReuse.sourceChannel === "shopware" ? "Shopware" : form.contentReuse.sourceChannel === "kleinanzeigen" ? "Kleinanzeigen" : "eBay"} übernommen · SKU {form.contentReuse.sourceArticleNumber} · keine neue Recherche
                   </p>
                 )}
               </div>

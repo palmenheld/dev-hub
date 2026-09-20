@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { emptyJsonPost } from "@/lib/http";
 import {
   KleinanzeigenConnection,
@@ -126,6 +126,8 @@ export default function KleinanzeigenModule({
   );
   const [form, setForm] = useState<ListingForm>(initialForm);
   const [savingDraft, setSavingDraft] = useState(false);
+  const [loadingReuse, setLoadingReuse] = useState(false);
+  const [reuseHint, setReuseHint] = useState("");
   const [busyIds, setBusyIds] = useState<Set<string>>(() => new Set());
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
@@ -169,6 +171,45 @@ export default function KleinanzeigenModule({
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  async function applyReusableContent(articleId: string) {
+    if (!articleId) return;
+    setLoadingReuse(true);
+    try {
+      const response = await fetch(
+        `/api/channels/kleinanzeigen/content-reuse?articleId=${encodeURIComponent(articleId)}`,
+        { cache: "no-store" }
+      );
+      const payload = (await response.json()) as {
+        reused?: boolean;
+        content?: { title: string; description: string };
+        reuse?: { sourceChannel: string; sourceArticleNumber: string };
+      };
+      if (!response.ok || !payload.reused || !payload.content || !payload.reuse) {
+        setReuseHint("");
+        return;
+      }
+      setForm((current) =>
+        current.articleId === articleId
+          ? {
+              ...current,
+              title: payload.content!.title,
+              description: payload.content!.description,
+            }
+          : current
+      );
+      const channelLabels: Record<string, string> = {
+        shopware: "Shopware",
+        ebay: "eBay",
+        kleinanzeigen: "Kleinanzeigen",
+      };
+      setReuseHint(
+        `Recherche und Pflanzendaten aus ${channelLabels[payload.reuse.sourceChannel] || payload.reuse.sourceChannel} (SKU ${payload.reuse.sourceArticleNumber}) übernommen; Textlänge und Stil wurden für Kleinanzeigen angepasst.`
+      );
+    } finally {
+      setLoadingReuse(false);
+    }
+  }
+
   function selectArticle(articleId: string) {
     const article = articleOptions.find((option) => option.id === articleId);
 
@@ -188,7 +229,19 @@ export default function KleinanzeigenModule({
         maximumFractionDigits: 2,
       }),
     }));
+    setReuseHint("");
+    void applyReusableContent(articleId);
   }
+
+  useEffect(() => {
+    if (!initialArticleId || initialListing) return;
+    const timer = window.setTimeout(() => {
+      void applyReusableContent(initialArticleId);
+    }, 0);
+    return () => window.clearTimeout(timer);
+    // The initial deep link is intentionally evaluated only once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function toggleListing(id: string) {
     setSelectedIds((current) => {
@@ -527,6 +580,13 @@ export default function KleinanzeigenModule({
 
             <label className="lg:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold">Beschreibung</span>
+              {(loadingReuse || reuseHint) && (
+                <span className="mb-2 block rounded-lg bg-green-50 px-3 py-2 text-xs text-green-800">
+                  {loadingReuse
+                    ? "Vorhandene Kanalinhalte werden geprüft…"
+                    : reuseHint}
+                </span>
+              )}
               <textarea
                 required
                 rows={7}

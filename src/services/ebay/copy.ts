@@ -168,6 +168,24 @@ function normalizedText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function sourceDescriptionText(value: string) {
+  return customerSafePlantText(
+    value
+      .replace(/<\s*br\s*\/?>/giu, "\n")
+      .replace(/<\/(?:p|li|h[1-6]|div)>/giu, "\n")
+      .replace(/<[^>]+>/gu, " ")
+      .replace(/&nbsp;/giu, " ")
+      .replace(/&amp;/giu, "&")
+      .replace(/&lt;/giu, "<")
+      .replace(/&gt;/giu, ">")
+      .replace(/&quot;/giu, '"')
+      .replace(/&#0?39;/giu, "'")
+  )
+    .replace(/\s+/gu, " ")
+    .trim()
+    .slice(0, 6_000);
+}
+
 function resolvedCommonName(
   copy: EbayGeneratedCopy,
   research: ProductResearch
@@ -452,13 +470,21 @@ function researchForPrompt(research: ProductResearch) {
 export async function generateEbayCopy(
   candidate: ProductCandidate,
   research: ProductResearch,
-  sources: ResearchSource[]
+  sources: ResearchSource[],
+  sourceContent?: {
+    channel: "shopware" | "ebay" | "kleinanzeigen";
+    title: string;
+    description: string;
+  }
 ): Promise<EbayGeneratedCopy> {
   const { model: researchModel } = getResearchConfiguration();
   const model =
     process.env.OPENAI_EBAY_COPY_MODEL?.trim() || researchModel;
   const sourceSummary = sources.map(({ id, publisher, domain }) => ({ id, publisher, domain }));
   const groupGuidance = speciesGroupPrompt(candidate);
+  const existingContent = sourceContent
+    ? `\nVORHANDENER, BEREITS RECHERCHIERTER AUSGANGSTEXT AUS ${sourceContent.channel.toUpperCase()}:\nTitel: ${sourceContent.title}\nBeschreibung: ${sourceDescriptionText(sourceContent.description)}\n\nPasse diesen Inhalt nur an eBay-Sprache, eBay-Struktur und die unten vorgegebenen Zeichenbereiche an. Übernimm die Aussagen sinngemäß; recherchiere nichts neu und ergänze keine neuen Pflanzenfakten.\n`
+    : "";
   const response = await openAIResponse({
     model,
     store: false,
@@ -482,6 +508,7 @@ VERBINDLICHE ARTIKELDATEN AUS WECLAPP:
 - Topfgröße: ${candidate.potSize || "nicht angegeben"}
 - Artikelnummer: ${candidate.articleNumber}
 ${groupGuidance}
+${existingContent}
 
 REGELN:
 - Titel: 65–80 Zeichen anstreben, maximal 80. Wichtigste zutreffende Suchbegriffe zuerst. Deutschen und botanischen Pflanzennamen, Verkaufsgröße und falls vorhanden Topfgröße verwenden. Keine Artikelnummer, Füllwörter, Doppelungen oder Symbole wie ©, ®, ™.

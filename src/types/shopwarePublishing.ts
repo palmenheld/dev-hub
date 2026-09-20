@@ -99,6 +99,18 @@ export type DraftValidation = {
   warnings: string[];
 };
 
+export type SalesChannel = "shopware" | "ebay" | "kleinanzeigen";
+
+export type ChannelContentReuse = {
+  sourceChannel: SalesChannel;
+  sourceId: string;
+  /** Kept for backwards compatibility with existing eBay draft files. */
+  sourceDraftId?: string;
+  sourceArticleNumber: string;
+  latinName: string;
+  reusedAt: string;
+};
+
 export type ShopwareUploadedImage = {
   id: string;
   originalName: string;
@@ -143,6 +155,7 @@ export type ShopwareProductDraft = {
   title: string;
   descriptionHtml: string;
   research: ProductResearch;
+  contentReuse?: ChannelContentReuse;
   sources: ResearchSource[];
   validation: DraftValidation;
   manuallyEdited: boolean;

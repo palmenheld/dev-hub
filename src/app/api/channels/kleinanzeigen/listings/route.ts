@@ -4,6 +4,11 @@ import {
   getKleinanzeigenListings,
 } from "@/services/kleinanzeigen";
 import { CreateKleinanzeigenListingInput } from "@/types/kleinanzeigen";
+import { getProductCandidate } from "@/services/shopware/publishingCandidates";
+import {
+  channelContentReuse,
+  findReusableChannelContent,
+} from "@/services/channelContent";
 
 function validateInput(input: Partial<CreateKleinanzeigenListingInput>) {
   if (!input.sku?.trim()) return "Artikelnummer fehlt.";
@@ -47,6 +52,12 @@ export async function POST(request: Request) {
       );
     }
 
+    const candidate = input.articleId
+      ? await getProductCandidate(input.articleId).catch(() => null)
+      : null;
+    const reuseSource = candidate
+      ? await findReusableChannelContent(candidate, "kleinanzeigen")
+      : undefined;
     const listing = await createKleinanzeigenListing({
       articleId: input.articleId,
       sku: input.sku!,
@@ -55,6 +66,15 @@ export async function POST(request: Request) {
       price: Number(input.price),
       category: input.category!,
       location: input.location!,
+      research: reuseSource
+        ? structuredClone(reuseSource.research)
+        : undefined,
+      sources: reuseSource
+        ? structuredClone(reuseSource.sources)
+        : undefined,
+      contentReuse: reuseSource
+        ? channelContentReuse(reuseSource)
+        : undefined,
     });
 
     return NextResponse.json({ success: true, listing }, { status: 201 });

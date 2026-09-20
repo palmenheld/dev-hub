@@ -1,4 +1,5 @@
 import type {
+  ChannelContentReuse,
   DraftValidation,
   ProductCandidate,
   ProductResearch,
@@ -268,12 +269,7 @@ export type EbayListingDraft = {
   copyPolicyVersion?: string;
   research: ProductResearch;
   researchPolicyVersion?: string;
-  contentReuse?: {
-    sourceDraftId: string;
-    sourceArticleNumber: string;
-    latinName: string;
-    reusedAt: string;
-  };
+  contentReuse?: ChannelContentReuse;
   sources: ResearchSource[];
   researchValidation: DraftValidation;
   validation: DraftValidation;

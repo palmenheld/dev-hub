@@ -306,6 +306,16 @@ export default function ShopwareDraftReview({
         </div>
       </div>
 
+      {draft.contentReuse && (
+        <p className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-semibold text-green-900">
+          Recherche und Pflanzendaten aus {draft.contentReuse.sourceChannel === "ebay"
+            ? "eBay"
+            : draft.contentReuse.sourceChannel === "kleinanzeigen"
+              ? "Kleinanzeigen"
+              : "Shopware"} (SKU {draft.contentReuse.sourceArticleNumber}) übernommen. Die Beschreibung wurde ohne neue Recherche im Shopware-Stil aufgebaut.
+        </p>
+      )}
+
       {error && (
         <p className="mt-3 rounded-lg bg-red-100 px-3 py-2 text-sm font-semibold text-red-700">
           {error}

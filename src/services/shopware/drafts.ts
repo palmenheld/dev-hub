@@ -12,6 +12,10 @@ import { getDraft, listDrafts, saveDraft } from "./dataStore";
 import { withMutationLock } from "./mutationLock";
 import { customerSafePlantText } from "./customerText";
 import { applyProductTemplate, resolveProductTemplate } from "./templates";
+import {
+  channelContentReuse,
+  findReusableChannelContent,
+} from "@/services/channelContent";
 
 const REQUIRED_BLOCKS = [
   "identity",
@@ -265,7 +269,13 @@ async function createProductDraftUnlocked(
     );
   }
 
-  const { research, sources } = await researchProduct(candidate);
+  const reuseSource = await findReusableChannelContent(candidate, "shopware");
+  const { research, sources } = reuseSource
+    ? {
+        research: structuredClone(reuseSource.research),
+        sources: structuredClone(reuseSource.sources),
+      }
+    : await researchProduct(candidate);
   const generatedTitle = draftTitle(
     research.confirmedGermanName || candidate.germanName,
     candidate.heightLabel ?? String(Math.round(candidate.heightCm)) + " cm",
@@ -302,6 +312,9 @@ async function createProductDraftUnlocked(
     title: templateValues?.title ?? generatedTitle,
     descriptionHtml: renderDescription(finalResearch, sources),
     research: finalResearch,
+    contentReuse: reuseSource
+      ? channelContentReuse(reuseSource, now)
+      : undefined,
     sources,
     validation,
     manuallyEdited: false,

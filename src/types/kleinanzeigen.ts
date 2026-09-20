@@ -1,3 +1,9 @@
+import type {
+  ChannelContentReuse,
+  ProductResearch,
+  ResearchSource,
+} from "@/types/shopwarePublishing";
+
 export type KleinanzeigenListingStatus =
   | "draft"
   | "active"
@@ -10,6 +16,9 @@ export type KleinanzeigenListing = {
   sku: string;
   title: string;
   description: string;
+  research?: ProductResearch;
+  sources?: ResearchSource[];
+  contentReuse?: ChannelContentReuse;
   price: number;
   category: string;
   location: string;
@@ -37,4 +46,7 @@ export type CreateKleinanzeigenListingInput = {
   price: number;
   category: string;
   location: string;
+  research?: ProductResearch;
+  sources?: ResearchSource[];
+  contentReuse?: ChannelContentReuse;
 };

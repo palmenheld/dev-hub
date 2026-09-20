@@ -39,6 +39,10 @@ import { getEbayConnection } from "./config";
 import { getEbaySettings } from "./store";
 import { applyEbayTemplate, resolveEbayTemplate } from "./templates";
 import {
+  channelContentReuse,
+  findReusableChannelContent,
+} from "@/services/channelContent";
+import {
   getEbayDraft,
   listEbayDrafts,
   saveEbayDraft,
@@ -123,35 +127,6 @@ function adaptGeneratedCopy(
     intro: `Angeboten wird ein Exemplar von ${germanName} (${latinName})${specifications.length ? ` ${specifications.join(" ")}` : ""}.`,
   };
 }
-
-function findReusablePlantDraft(
-  drafts: EbayListingDraft[],
-  candidate: ProductCandidate
-) {
-  const wantedLatinName = normalizedLatinName(candidate.latinName);
-  if (!wantedLatinName) return undefined;
-
-  return drafts.find((draft) => {
-    if (
-      draft.source.articleId === candidate.articleId ||
-      !draft.generatedCopy ||
-      draft.copyPolicyVersion !== EBAY_COPY_POLICY_VERSION ||
-      draft.researchPolicyVersion !== RESEARCH_POLICY_VERSION ||
-      !draft.researchValidation.valid
-    ) {
-      return false;
-    }
-    const matchesLatinName = [
-      draft.source.latinName,
-      draft.research.confirmedLatinName,
-    ].some((name) => normalizedLatinName(name) === wantedLatinName);
-    return (
-      matchesLatinName &&
-      validateResearch(draft.research, draft.sources).valid
-    );
-  });
-}
-
 
 const EBAY_PLANT_CATEGORY = {
   id: "19617",
@@ -635,16 +610,27 @@ async function createUnlocked(
       `Bitte ergänze vor der KI-Erstellung: ${creationMissing.join(", ")}.`
     );
   }
-  const reuseSource = findReusablePlantDraft(savedDrafts, candidate);
+  const reuseSource = await findReusableChannelContent(candidate, "ebay");
   const { research, sources } = reuseSource
     ? {
         research: structuredClone(reuseSource.research),
         sources: structuredClone(reuseSource.sources),
       }
     : await researchProduct(candidate);
-  const generatedCopy = reuseSource
-    ? adaptGeneratedCopy(reuseSource.generatedCopy!, candidate, research)
-    : await generateEbayCopy(candidate, research, sources);
+  const generatedCopy = reuseSource?.ebayCopy
+    ? adaptGeneratedCopy(reuseSource.ebayCopy, candidate, research)
+    : await generateEbayCopy(
+        candidate,
+        research,
+        sources,
+        reuseSource
+          ? {
+              channel: reuseSource.channel,
+              title: reuseSource.title,
+              description: reuseSource.description,
+            }
+          : undefined
+      );
   const generatedAspects = generatedEbayAspects(generatedCopy, research);
   const researchValidation = validateResearch(research, sources);
   const now = new Date().toISOString();
@@ -705,12 +691,7 @@ async function createUnlocked(
     research,
     researchPolicyVersion: RESEARCH_POLICY_VERSION,
     contentReuse: reuseSource
-      ? {
-          sourceDraftId: reuseSource.id,
-          sourceArticleNumber: reuseSource.source.articleNumber,
-          latinName: research.confirmedLatinName || candidate.latinName,
-          reusedAt: now,
-        }
+      ? channelContentReuse(reuseSource, now)
       : undefined,
     sources,
     researchValidation,
