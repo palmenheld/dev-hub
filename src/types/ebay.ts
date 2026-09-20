@@ -192,6 +192,7 @@ export type EbayGeneratedCopy = {
     care: string[];
     winter: string[];
   };
+  qualityWarnings?: string[];
 };
 
 export type EbayDraftJob = {

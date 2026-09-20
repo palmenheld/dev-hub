@@ -242,7 +242,7 @@ function rootDomain(domain: string) {
     : lastTwo;
 }
 
-function assertEvidence(
+function evidenceWarning(
   ids: string[],
   sources: ResearchSource[],
   label: string,
@@ -251,9 +251,7 @@ function assertEvidence(
   const sourceMap = new Map(sources.map((source) => [source.id, source]));
   const unknown = [...new Set(ids)].filter((id) => !sourceMap.has(id));
   if (unknown.length) {
-    throw new Error(
-      `Der eBay-${label} verweist auf unbekannte Quellen: ${unknown.join(", ")}.`
-    );
+    return `Der eBay-${label} verweist auf unbekannte Quellen: ${unknown.join(", ")}.`;
   }
   const domains = new Set(
     ids
@@ -262,10 +260,9 @@ function assertEvidence(
       .map((source) => rootDomain(source.domain))
   );
   if (domains.size < minimum) {
-    throw new Error(
-      `Der eBay-${label} ist nur durch ${domains.size} von ${minimum} unabhängigen Quellen belegt.`
-    );
+    return `Der eBay-${label} ist nur durch ${domains.size} von ${minimum} unabhängigen Quellen belegt.`;
   }
+  return undefined;
 }
 
 function titleContainsOfferFacts(
@@ -395,14 +392,17 @@ function validateGeneratedCopy(
   if (copy.evidence.sellingPoints.length !== copy.sellingPoints.length) {
     throw new Error("Die Quellenzuordnung der eBay-Verkaufspunkte ist unvollständig.");
   }
-  assertEvidence(copy.evidence.intro, sources, "Einleitung", 2);
-  copy.evidence.sellingPoints.forEach((ids, index) =>
-    assertEvidence(ids, sources, `Verkaufspunkt ${index + 1}`, 2)
-  );
-  assertEvidence(copy.evidence.appearance, sources, "Erscheinungsbild", 2);
-  assertEvidence(copy.evidence.location, sources, "Standorttext", 2);
-  assertEvidence(copy.evidence.care, sources, "Pflegetext", 2);
-  assertEvidence(copy.evidence.winter, sources, "Wintertext", 3);
+  const qualityWarnings = [
+    evidenceWarning(copy.evidence.intro, sources, "Einleitung", 2),
+    ...copy.evidence.sellingPoints.map((ids, index) =>
+      evidenceWarning(ids, sources, `Verkaufspunkt ${index + 1}`, 2)
+    ),
+    evidenceWarning(copy.evidence.appearance, sources, "Erscheinungsbild", 2),
+    evidenceWarning(copy.evidence.location, sources, "Standorttext", 2),
+    evidenceWarning(copy.evidence.care, sources, "Pflegetext", 2),
+    evidenceWarning(copy.evidence.winter, sources, "Wintertext", 3),
+  ].filter((warning): warning is string => Boolean(warning));
+  copy.qualityWarnings = [...new Set(qualityWarnings)];
 
   const visibleText = [copy.title, copy.intro, ...copy.sellingPoints, copy.appearance, copy.location, copy.care, copy.winter].join(" ");
   if (containsInternalQualityLanguage(visibleText)) {

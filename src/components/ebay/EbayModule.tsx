@@ -1019,6 +1019,13 @@ export default function EbayModule({
   ) {
     if (!active) return;
     if (
+      action === "approve" &&
+      active.validation.warnings.length > 0 &&
+      !window.confirm(
+        `Der Entwurf enthält ${active.validation.warnings.length} Qualitätshinweis(e). Du bestätigst, dass du Inhalt und Quellen manuell geprüft hast und den Entwurf trotzdem freigeben möchtest. Fortfahren?`
+      )
+    ) return;
+    if (
       action === "regenerate" &&
       !window.confirm(
         "Titel und Beschreibung werden neu recherchiert und ersetzt. Kategorie, Merkmale, Preis und Bestand bleiben erhalten. Fortfahren?"
@@ -2991,7 +2998,9 @@ export default function EbayModule({
                   ? "Freigabe für neues eBay-Ziel erneuern"
                   : active.approvedAt
                     ? "Freigegeben"
-                    : "Inhalt ausdrücklich freigeben"}
+                    : active.validation.warnings.length
+                      ? "Trotz Qualitätshinweisen freigeben"
+                      : "Inhalt ausdrücklich freigeben"}
               </button>
               {active.status === "reconciliation_required" ? (
                 <>

@@ -359,12 +359,29 @@ export function validateEbayDraft(
     | "aspects"
     | "condition"
     | "options"
+    | "generatedCopy"
   >,
   definitions: EbayAspect[] = [],
   supportedConditions: string[] = []
 ): DraftValidation {
-  const errors = [...draft.researchValidation.errors];
-  const warnings = [...draft.researchValidation.warnings];
+  const overridableResearchErrors = draft.researchValidation.errors.filter(
+    (error) =>
+      /(?:nur \d+ von \d+ unabhängigen Quellen belegt|unbekannte Quellenverweise|weniger als drei Quellen wurden dokumentiert)/iu.test(
+        error
+      )
+  );
+  const errors = draft.researchValidation.errors.filter(
+    (error) => !overridableResearchErrors.includes(error)
+  );
+  const warnings = [
+    ...overridableResearchErrors.map(
+      (error) => `Manuell prüfbarer Quellenhinweis: ${error}`
+    ),
+    ...draft.researchValidation.warnings,
+    ...(draft.generatedCopy?.qualityWarnings ?? []).map(
+      (warning) => `Manuell prüfbarer Quellenhinweis: ${warning}`
+    ),
+  ];
   const options = draft.options ?? defaultListingOptions(draft.source);
   const condition = options.condition || draft.condition;
 
@@ -524,7 +541,11 @@ export function validateEbayDraft(
     );
   }
 
-  return { valid: errors.length === 0, errors, warnings };
+  return {
+    valid: errors.length === 0,
+    errors: [...new Set(errors)],
+    warnings: [...new Set(warnings)],
+  };
 }
 
 async function applyAutomaticEbayDefaults(draft: EbayListingDraft) {
