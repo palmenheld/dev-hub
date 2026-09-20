@@ -4,6 +4,7 @@ import {
   createEbayDraft,
 } from "@/services/ebay/drafts";
 import { assertSameOrigin } from "@/services/requestSecurity";
+import type { EbayCandidateInput } from "@/types/ebay";
 
 export const maxDuration = 360;
 
@@ -25,6 +26,7 @@ export async function POST(request: Request) {
       articleId?: unknown;
       replaceExisting?: unknown;
       templateId?: unknown;
+      candidateInput?: EbayCandidateInput;
     };
     if (typeof body.articleId !== "string" || !/^\d+$/.test(body.articleId.trim())) {
       throw new Error("Eine gültige Weclapp-Artikel-ID ist erforderlich.");
@@ -35,7 +37,8 @@ export async function POST(request: Request) {
         body.replaceExisting === true,
         typeof body.templateId === "string" && body.templateId
           ? body.templateId
-          : undefined
+          : undefined,
+        body.candidateInput
       ),
     });
   } catch (error) {

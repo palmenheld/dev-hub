@@ -8,6 +8,7 @@ import { preferredGermanCommonName } from "@/services/shopware/plantNames";
 import { renderEbayDescription } from "./description";
 import { withEbayMutationLock } from "./lock";
 import { getEbayCandidate } from "./candidates";
+import { applyEbayCandidateOverrides } from "./candidateOverrides";
 import { ebayFormDataRequest, ebayRequest } from "./client";
 import { getEbayConnection, missingPublishingSettings } from "./config";
 import { getEbayDraft, getEbaySettings, saveEbayDraft } from "./store";
@@ -288,7 +289,10 @@ async function publishUnlocked(id: string) {
   if (missing.length) {
     throw new Error(`Vor dem Veröffentlichen fehlen: ${missing.join(", ")}.`);
   }
-  const current = await getEbayCandidate(draft.source.articleId);
+  const current = applyEbayCandidateOverrides(
+    await getEbayCandidate(draft.source.articleId),
+    draft.sourceOverrides
+  );
   const changes = changedSourceFields(draft.source, current);
   if (changes.length) {
     throw new Error(

@@ -432,7 +432,7 @@ export default function EbayArticleOverview({
                         </span>
                         {!candidate.eligible && (
                           <p className="mt-2 max-w-48 text-xs text-red-700">
-                            {candidate.missing.join(", ")}
+                            Beim Erstellen ergänzbar: {candidate.missing.join(", ")}
                           </p>
                         )}
                       </td>

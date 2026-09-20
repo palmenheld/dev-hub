@@ -205,6 +205,25 @@ export type EbayDraftJob = {
   error?: string;
 };
 
+export type EbayCandidateInput = {
+  germanName?: unknown;
+  latinName?: unknown;
+  height?: unknown;
+  potSize?: unknown;
+  price?: unknown;
+};
+
+export type EbayCandidateOverrides = {
+  germanName?: string;
+  latinName?: string;
+  heightCm?: number;
+  heightMinCm?: number;
+  heightMaxCm?: number;
+  heightLabel?: string;
+  potSize?: string;
+  price?: number;
+};
+
 export type EbayListingDraft = {
   id: string;
   status:
@@ -221,6 +240,7 @@ export type EbayListingDraft = {
   marketplaceId: string;
   publishingSettings: EbayPublishingSettings;
   source: ProductCandidate;
+  sourceOverrides?: EbayCandidateOverrides;
   title: string;
   descriptionHtml: string;
   categoryId: string;

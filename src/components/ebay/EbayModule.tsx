@@ -22,6 +22,13 @@ import type {
 import type { ProductCandidate } from "@/types/shopwarePublishing";
 
 type Feedback = { kind: "success" | "error"; message: string };
+type CandidateInputForm = {
+  germanName: string;
+  latinName: string;
+  height: string;
+  potSize: string;
+  price: string;
+};
 const MAX_BATCH = 10;
 const JOB_POLL_INTERVAL_MS = 2_000;
 const JOB_MAX_WAIT_MS = 20 * 60 * 1_000;
@@ -47,6 +54,16 @@ function money(value?: number, currency = "EUR") {
     style: "currency",
     currency,
   }).format(value);
+}
+
+function candidateInputForm(candidate: ProductCandidate): CandidateInputForm {
+  return {
+    germanName: candidate.germanName || "",
+    latinName: candidate.latinName || "",
+    height: candidate.heightLabel || "",
+    potSize: candidate.potSize || "",
+    price: candidate.price ? String(candidate.price) : "",
+  };
 }
 
 function status(draft: EbayListingDraft) {
@@ -152,6 +169,11 @@ export default function EbayModule({
   const [candidates, setCandidates] = useState<ProductCandidate[]>([]);
   const [drafts, setDrafts] = useState<EbayListingDraft[]>([]);
   const [active, setActive] = useState<EbayListingDraft | null>(null);
+  const [pendingCandidate, setPendingCandidate] =
+    useState<ProductCandidate | null>(null);
+  const [candidateForm, setCandidateForm] = useState<CandidateInputForm | null>(
+    null
+  );
   const [selected, setSelected] = useState<string[]>([]);
   const [onlyActive, setOnlyActive] = useState(true);
   const [onlyReady, setOnlyReady] = useState(false);
@@ -201,11 +223,10 @@ export default function EbayModule({
       const directArticleId =
         initialArticleId || parameters.get("articleId")?.trim() || "";
       if (directArticleId) {
-        setBusy("direct-draft");
+        setBusy("direct-load");
         setFeedback({
           kind: "success",
-          message:
-            "Der Weclapp-Artikel wird geladen und der eBay-Entwurf per KI vorbereitet…",
+          message: "Der Weclapp-Artikel wird geladen…",
         });
       }
       try {
@@ -232,40 +253,37 @@ export default function EbayModule({
           );
         }
 
-        let loadedDrafts = draftPayload.drafts;
+        const loadedDrafts = draftPayload.drafts;
         let directDraft: EbayListingDraft | null = null;
-        const directWasExisting = loadedDrafts.some(
-          (draft) => draft.source.articleId === directArticleId
-        );
+        let directCandidate: ProductCandidate | null = null;
         if (directArticleId) {
           if (!/^\d+$/.test(directArticleId)) {
             throw new Error("Die übergebene Weclapp-Artikel-ID ist ungültig.");
           }
-          const directResponse = await fetch("/api/channels/ebay/drafts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ articleId: directArticleId }),
-          });
-          const directPayload = (await directResponse.json()) as {
-            draft?: EbayListingDraft;
-            error?: string;
-          };
-          if (!directResponse.ok || !directPayload.draft) {
-            throw new Error(
-              directPayload.error || "Der eBay-Entwurf konnte nicht erstellt werden."
+          directDraft =
+            loadedDrafts.find(
+              (draft) => draft.source.articleId === directArticleId
+            ) || null;
+          if (!directDraft) {
+            const candidateResponse = await fetch(
+              `/api/channels/ebay/candidates?articleId=${encodeURIComponent(directArticleId)}`,
+              { cache: "no-store" }
             );
+            const candidatePayload = (await candidateResponse.json()) as {
+              candidate?: ProductCandidate;
+              error?: string;
+            };
+            if (!candidateResponse.ok || !candidatePayload.candidate) {
+              throw new Error(
+                candidatePayload.error || "Der Weclapp-Artikel konnte nicht geladen werden."
+              );
+            }
+            directCandidate = candidatePayload.candidate;
           }
-          directDraft = directPayload.draft;
-          loadedDrafts = [
-            directDraft,
-            ...loadedDrafts.filter(
-              (draft) => draft.source.articleId !== directDraft?.source.articleId
-            ),
-          ];
         }
 
         if (!cancelled) {
-          const first = directDraft || loadedDrafts[0] || null;
+          const first = directDraft || (directArticleId ? null : loadedDrafts[0] || null);
           const defaultTemplate = templatePayload.templates.find(
             (template) => template.isDefault
           );
@@ -274,15 +292,21 @@ export default function EbayModule({
           setDrafts(loadedDrafts);
           setActive(first);
           setForm(first ? editableDraft(first) : null);
+          setPendingCandidate(directCandidate);
+          setCandidateForm(
+            directCandidate ? candidateInputForm(directCandidate) : null
+          );
           setCategoryQuery(first?.title ?? "");
           if (directDraft) {
             setFeedback({
               kind: "success",
-              message: directWasExisting
-                ? `Der vorhandene eBay-Entwurf für ${directDraft.source.articleNumber} wurde geöffnet.`
-                : directDraft.contentReuse
-                  ? `Der eBay-Entwurf für ${directDraft.source.articleNumber} wurde ohne neue KI-Berechnung aus SKU ${directDraft.contentReuse.sourceArticleNumber} übernommen. Größe, Topf, Preis, Bestand und Bilder stammen aus dem neuen Weclapp-Artikel.`
-                  : `Der eBay-Entwurf für ${directDraft.source.articleNumber} wurde aus Weclapp erstellt${directDraft.templateName ? ` und mit „${directDraft.templateName}“ vorbelegt` : ""}.`,
+              message: `Der vorhandene eBay-Entwurf für ${directDraft.source.articleNumber} wurde geöffnet.`,
+            });
+          } else if (directCandidate) {
+            setFeedback({
+              kind: "success",
+              message:
+                "Prüfe die aus Weclapp übernommenen Grunddaten und ergänze fehlende Angaben. Erst danach startet die KI-Erstellung.",
             });
           }
           setBusy("");
@@ -368,6 +392,78 @@ export default function EbayModule({
       ...current.filter((item) => item.source.articleId !== draft.source.articleId),
     ]);
     selectDraft(draft);
+  }
+
+  function updateCandidateForm(
+    key: keyof CandidateInputForm,
+    value: string
+  ) {
+    setCandidateForm((current) =>
+      current ? { ...current, [key]: value } : current
+    );
+  }
+
+  async function createDirectDraft() {
+    if (!pendingCandidate || !candidateForm) return;
+    const required = [
+      ["deutscher Name", candidateForm.germanName],
+      ["lateinischer Name", candidateForm.latinName],
+      ["Höhe", candidateForm.height],
+      ["Verkaufspreis", candidateForm.price],
+    ].filter(([, value]) => !value.trim());
+    if (required.length) {
+      setFeedback({
+        kind: "error",
+        message: `Bitte ergänze: ${required.map(([label]) => label).join(", ")}.`,
+      });
+      return;
+    }
+
+    setBusy("direct-draft");
+    setFeedback({
+      kind: "success",
+      message: "Die Grunddaten sind übernommen. Recherche und Texterstellung laufen…",
+    });
+    try {
+      const response = await fetch("/api/channels/ebay/draft-jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          articleId: pendingCandidate.articleId,
+          templateId: selectedTemplateId,
+          candidateInput: candidateForm,
+        }),
+      });
+      const payload = (await response.json()) as {
+        job?: EbayDraftJob;
+        error?: string;
+      };
+      if (!response.ok || !payload.job) {
+        throw new Error(
+          payload.error || "Der KI-Auftrag konnte nicht gestartet werden."
+        );
+      }
+      const draft = await waitForDraftJob(payload.job.id);
+      remember(draft);
+      setPendingCandidate(null);
+      setCandidateForm(null);
+      setFeedback({
+        kind: "success",
+        message: draft.contentReuse
+          ? `Der Entwurf wurde aus dem vorhandenen Pflanzeninhalt der SKU ${draft.contentReuse.sourceArticleNumber} übernommen und mit den geprüften Artikeldaten angepasst.`
+          : "Der eBay-Entwurf wurde erstellt. Du kannst jetzt alle Angaben prüfen und bearbeiten.",
+      });
+    } catch (error) {
+      setFeedback({
+        kind: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Der eBay-Entwurf konnte nicht erstellt werden.",
+      });
+    } finally {
+      setBusy("");
+    }
   }
 
   async function testConnection() {
@@ -1218,6 +1314,157 @@ export default function EbayModule({
         }`}>
           {feedback.message}
         </div>
+      )}
+
+      {pendingCandidate && candidateForm && (
+        <section className="mt-5 rounded-2xl border border-amber-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-start">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--ph-gold)]">
+                Vor der KI-Erstellung
+              </p>
+              <h2 className="mt-1 text-xl text-[var(--ph-green-dark)]">
+                Grunddaten prüfen und ergänzen
+              </h2>
+              <p className="mt-1 max-w-4xl text-sm text-slate-600">
+                Vorhandene Werte kommen aus Weclapp. Fehlende oder unpassende Angaben
+                kannst du hier nur für diesen eBay-Entwurf korrigieren. Weclapp selbst
+                wird dadurch nicht verändert.
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 px-4 py-2 text-sm">
+              <strong>SKU {pendingCandidate.articleNumber}</strong>
+              <div className="text-slate-500">
+                {pendingCandidate.imageUrls.length} Weclapp-Bild(er)
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <label className="text-sm font-semibold">
+              Deutscher Name <span className="text-red-700">*</span>
+              <input
+                value={candidateForm.germanName}
+                onChange={(event) =>
+                  updateCandidateForm("germanName", event.target.value)
+                }
+                maxLength={240}
+                placeholder="z. B. Olivenbaum"
+                className={`mt-1 block w-full rounded-xl border px-3 py-2.5 font-normal ${
+                  candidateForm.germanName.trim()
+                    ? "border-slate-300"
+                    : "border-red-400 bg-red-50"
+                }`}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Lateinischer Name <span className="text-red-700">*</span>
+              <input
+                value={candidateForm.latinName}
+                onChange={(event) =>
+                  updateCandidateForm("latinName", event.target.value)
+                }
+                maxLength={240}
+                placeholder="z. B. Olea europaea oder Yucca spp."
+                className={`mt-1 block w-full rounded-xl border px-3 py-2.5 font-normal ${
+                  candidateForm.latinName.trim()
+                    ? "border-slate-300"
+                    : "border-red-400 bg-red-50"
+                }`}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Höhe oder Höhenbereich <span className="text-red-700">*</span>
+              <input
+                value={candidateForm.height}
+                onChange={(event) =>
+                  updateCandidateForm("height", event.target.value)
+                }
+                maxLength={80}
+                placeholder="z. B. 80–100 cm"
+                className={`mt-1 block w-full rounded-xl border px-3 py-2.5 font-normal ${
+                  candidateForm.height.trim()
+                    ? "border-slate-300"
+                    : "border-red-400 bg-red-50"
+                }`}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Topfmaß <span className="font-normal text-slate-500">(optional)</span>
+              <input
+                value={candidateForm.potSize}
+                onChange={(event) =>
+                  updateCandidateForm("potSize", event.target.value)
+                }
+                maxLength={80}
+                placeholder="z. B. C45, M50 oder Ø 22 cm"
+                className={`mt-1 block w-full rounded-xl border px-3 py-2.5 font-normal ${
+                  candidateForm.potSize.trim()
+                    ? "border-slate-300"
+                    : "border-amber-300 bg-amber-50"
+                }`}
+              />
+            </label>
+            <label className="text-sm font-semibold">
+              Weclapp-Grundpreis <span className="text-red-700">*</span>
+              <div className="mt-1 flex overflow-hidden rounded-xl border bg-white">
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={candidateForm.price}
+                  onChange={(event) =>
+                    updateCandidateForm("price", event.target.value)
+                  }
+                  placeholder="0,00"
+                  className="min-w-0 flex-1 px-3 py-2.5 font-normal"
+                />
+                <span className="border-l bg-slate-50 px-3 py-2.5 font-normal">€</span>
+              </div>
+              <span className="mt-1 block text-xs font-normal text-slate-500">
+                Die eBay-Preisformel wird anschließend automatisch angewendet.
+              </span>
+            </label>
+            <label className="text-sm font-semibold">
+              Template <span className="font-normal text-slate-500">(optional)</span>
+              <select
+                value={selectedTemplateId}
+                onChange={(event) => setSelectedTemplateId(event.target.value)}
+                className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 font-normal"
+              >
+                <option value="none">Ohne Template</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}{template.isDefault ? " (Standard)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {!pendingCandidate.imageUrls.length && (
+            <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              In Weclapp wurden noch keine Bilder erkannt. Der Textentwurf kann trotzdem
+              erstellt werden; vor der Veröffentlichung müssen Bilder ergänzt werden.
+            </p>
+          )}
+
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={createDirectDraft}
+              disabled={Boolean(busy)}
+              className="rounded-xl bg-[var(--ph-green-dark)] px-5 py-3 font-semibold text-white disabled:opacity-40"
+            >
+              {busy === "direct-draft"
+                ? "Recherche und Texterstellung laufen…"
+                : "Grunddaten übernehmen & KI-Entwurf erstellen"}
+            </button>
+            <span className="text-xs text-slate-500">
+              * Pflichtfeld für die Texterstellung
+            </span>
+          </div>
+        </section>
       )}
 
       {!detailOnly && setup && settings && (

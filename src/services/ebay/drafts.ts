@@ -4,6 +4,7 @@ import type {
   ProductCandidate,
 } from "@/types/shopwarePublishing";
 import type {
+  EbayCandidateInput,
   EbayAspect,
   EbayGeneratedCopy,
   EbayListingDraft,
@@ -20,6 +21,11 @@ import {
 import { withEbayMutationLock } from "./lock";
 import { generateEbayCopy, generatedEbayAspects } from "./copy";
 import { getEbayCandidate } from "./candidates";
+import {
+  applyEbayCandidateOverrides,
+  ebayCreationMissing,
+  prepareEbayCandidate,
+} from "./candidateOverrides";
 import {
   getEbayCategoryAspects,
   getEbayCategoryConditions,
@@ -565,7 +571,8 @@ export async function backfillAutomaticEbayDefaults() {
 async function createUnlocked(
   articleId: string,
   replaceExisting: boolean,
-  templateId?: string
+  templateId?: string,
+  candidateInput?: EbayCandidateInput
 ) {
   const savedDrafts = await listEbayDrafts();
   const existing = savedDrafts.find(
@@ -588,9 +595,16 @@ async function createUnlocked(
   }
 
   const template = await resolveEbayTemplate(templateId);
-  const candidate = await getEbayCandidate(articleId);
-  if (!candidate.eligible || !candidate.heightCm || !candidate.price) {
-    throw new Error(`Der Artikel ist noch nicht bereit: ${candidate.missing.join(", ")}.`);
+  const prepared = prepareEbayCandidate(
+    await getEbayCandidate(articleId),
+    candidateInput
+  );
+  const candidate = prepared.candidate;
+  const creationMissing = ebayCreationMissing(candidate);
+  if (creationMissing.length) {
+    throw new Error(
+      `Bitte ergänze vor der KI-Erstellung: ${creationMissing.join(", ")}.`
+    );
   }
   const reuseSource = findReusablePlantDraft(savedDrafts, candidate);
   const { research, sources } = reuseSource
@@ -634,6 +648,7 @@ async function createUnlocked(
     marketplaceId: settings.marketplaceId,
     publishingSettings: settings,
     source: candidate,
+    sourceOverrides: prepared.overrides,
     title: templateValues?.title || generatedTitle,
     descriptionHtml: renderEbayDescription(
       generatedCopy,
@@ -652,7 +667,7 @@ async function createUnlocked(
     },
     price:
       templateValues?.price ||
-      ebaySuggestedPrice(candidate.price, candidate.heightCm),
+      ebaySuggestedPrice(candidate.price!, candidate.heightCm!),
     quantity:
       templateValues?.quantity ??
       Math.max(0, Math.floor(candidate.stock ?? 0)),
@@ -847,10 +862,14 @@ async function regenerateCopyUnlocked(id: string) {
       "Der Text kann während oder nach einer eBay-Übertragung nicht neu erzeugt werden."
     );
   }
-  const candidate = await getEbayCandidate(draft.source.articleId);
-  if (!candidate.eligible || !candidate.heightCm || !candidate.price) {
+  const candidate = applyEbayCandidateOverrides(
+    await getEbayCandidate(draft.source.articleId),
+    draft.sourceOverrides
+  );
+  const creationMissing = ebayCreationMissing(candidate);
+  if (creationMissing.length) {
     throw new Error(
-      `Der Artikel ist nicht mehr vollständig: ${candidate.missing.join(", ")}.`
+      `Der Artikel ist nicht mehr vollständig: ${creationMissing.join(", ")}.`
     );
   }
   const identityChanged =
@@ -909,7 +928,8 @@ async function regenerateCopyUnlocked(id: string) {
 export async function createEbayDraft(
   articleId: string,
   replaceExisting = false,
-  templateId?: string
+  templateId?: string,
+  candidateInput?: EbayCandidateInput
 ) {
   const existing = (await listEbayDrafts()).find(
     (item) => item.source.articleId === articleId
@@ -918,7 +938,7 @@ export async function createEbayDraft(
     ? `ebay-draft:${existing.id}`
     : `ebay-article:${articleId}`;
   return withEbayMutationLock(lockKey, () =>
-    createUnlocked(articleId, replaceExisting, templateId)
+    createUnlocked(articleId, replaceExisting, templateId, candidateInput)
   );
 }
 

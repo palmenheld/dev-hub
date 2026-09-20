@@ -33,10 +33,10 @@ export type ProductCandidate = {
   heightMinCm?: number;
   heightMaxCm?: number;
   heightLabel?: string;
-  heightSource?: "field" | "product_name";
+  heightSource?: "field" | "product_name" | "manual";
   potSize?: string;
   potDiameterCm?: number;
-  potSizeSource?: "field" | "product_name";
+  potSizeSource?: "field" | "product_name" | "manual";
   price?: number;
   priceSource?: string;
   priceFallback?: boolean;

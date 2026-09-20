@@ -2,6 +2,8 @@ import { getArticle, getArticles, getShopwarePriceMap } from "@/services/weclapp
 import type { WeclappArticle } from "@/services/weclapp/types/article";
 import { getFieldMap } from "@/services/shopware/dataStore";
 import { mapCandidate } from "@/services/shopware/fieldMapping";
+import type { EbayCandidateInput } from "@/types/ebay";
+import { prepareEbayCandidate } from "./candidateOverrides";
 
 async function detailedArticles(
   limit: number,
@@ -79,4 +81,11 @@ export async function getEbayCandidate(articleId: string) {
     resolvedPrice?.salesChannel,
     resolvedPrice?.fallback
   );
+}
+
+export async function getPreparedEbayCandidate(
+  articleId: string,
+  input?: EbayCandidateInput
+) {
+  return prepareEbayCandidate(await getEbayCandidate(articleId), input);
 }

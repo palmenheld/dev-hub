@@ -7,6 +7,7 @@ import {
 import { getEbayCandidate } from "@/services/ebay/candidates";
 import { getEbayDraft } from "@/services/ebay/store";
 import { assertSameOrigin } from "@/services/requestSecurity";
+import type { EbayCandidateInput } from "@/types/ebay";
 
 export async function GET(request: Request) {
   try {
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
       articleId?: unknown;
       draftId?: unknown;
       templateId?: unknown;
+      candidateInput?: EbayCandidateInput;
     };
     const draftId =
       typeof body.draftId === "string" &&
@@ -67,7 +69,13 @@ export async function POST(request: Request) {
       typeof body.templateId === "string" && body.templateId
         ? body.templateId
         : undefined;
-    void runEbayDraftJob(job.id, articleId, templateId, draftId);
+    void runEbayDraftJob(
+      job.id,
+      articleId,
+      templateId,
+      draftId,
+      body.candidateInput
+    );
     return NextResponse.json({ job }, { status: 202 });
   } catch (error) {
     return NextResponse.json(
