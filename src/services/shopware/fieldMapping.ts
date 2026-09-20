@@ -217,7 +217,7 @@ const NON_BOTANICAL_EPITHETS = new Set([
 export function parseLatinNameFromProductName(value: unknown) {
   const text = textValue(value).replace(/[–—]/gu, "-");
   if (!text) return undefined;
-  const pattern = /\b([A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ-]{2,})\s+(spp?\.|[a-zà-öø-ÿ][a-zà-öø-ÿ-]{1,})(\s+(?:(?:subsp\.|ssp\.|var\.|f\.)\s+[a-zà-öø-ÿ][a-zà-öø-ÿ-]{1,}|['‘’\"][^'‘’\"]{2,}['‘’\"]))?/gu;
+  const pattern = /\b([A-ZÀ-ÖØ-Þ][A-Za-zÀ-ÖØ-öø-ÿ-]{2,})\s+(spp?\.|[a-zà-öø-ÿ][a-zà-öø-ÿ-]{1,})(\s+(?:(?:subsp\.|ssp\.|var\.|f\.)\s+[a-zà-öø-ÿ][a-zà-öø-ÿ-]{1,}|['‘’"][^'‘’"]{2,}['‘’"]))?/gu;
   const latinEnding = /(?:a|ae|ii|i|is|um|us|ensis|ense|ana|iana|ica|ata|osa|fera|ifera|oides|ides|alis|aris|orum|arum)$/iu;
   const candidates = [...text.matchAll(pattern)]
     .map((match) => {
