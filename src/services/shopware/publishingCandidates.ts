@@ -42,11 +42,12 @@ async function loadDetailedArticles(limit: number, page = 1) {
   return details;
 }
 
-async function loadAllDetailedArticles() {
+async function loadAllArticleSummaries() {
   const articles: WeclappArticle[] = [];
-  const pageSize = 100;
+  const pageSize = 500;
   for (let page = 1; page <= 100; page += 1) {
-    const pageArticles = await loadDetailedArticles(pageSize, page);
+    const response = await getArticles({ page, pageSize });
+    const pageArticles = response.result ?? [];
     articles.push(...pageArticles);
     if (pageArticles.length < pageSize) break;
   }
@@ -55,11 +56,19 @@ async function loadAllDetailedArticles() {
 
 async function existingProductNumbers(articleNumbers: string[]) {
   const result = new Set<string>();
+  const chunks: string[][] = [];
   for (let index = 0; index < articleNumbers.length; index += 100) {
-    const found = await getExistingProductNumbers(
-      articleNumbers.slice(index, index + 100)
+    chunks.push(articleNumbers.slice(index, index + 100));
+  }
+  for (let index = 0; index < chunks.length; index += 4) {
+    const batch = await Promise.all(
+      chunks
+        .slice(index, index + 4)
+        .map((chunk) => getExistingProductNumbers(chunk))
     );
-    found.forEach((articleNumber) => result.add(articleNumber));
+    batch.forEach((found) =>
+      found.forEach((articleNumber) => result.add(articleNumber))
+    );
   }
   return result;
 }
@@ -153,7 +162,7 @@ export async function getProductCandidates(
 }
 
 export async function getAllProductCandidates() {
-  return mapArticles(await loadAllDetailedArticles());
+  return mapArticles(await loadAllArticleSummaries());
 }
 
 export async function getProductCandidate(articleId: string) {

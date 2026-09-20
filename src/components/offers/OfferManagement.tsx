@@ -247,7 +247,9 @@ export default function OfferManagement() {
       return (
         (!term || searchable.includes(term)) &&
         (categoryFilter === "all" ||
-          candidate.articleCategoryName === categoryFilter) &&
+          (categoryFilter === "__none__"
+            ? !candidate.articleCategoryName
+            : candidate.articleCategoryName === categoryFilter)) &&
         (activeFilter === "all" ||
           (activeFilter === "active"
             ? candidate.active !== false
@@ -351,6 +353,7 @@ export default function OfferManagement() {
                 className="mt-1 block w-full rounded-xl border bg-white px-3 py-2.5 text-sm font-normal text-slate-900"
               >
                 <option value="all">Alle Kategorien</option>
+                <option value="__none__">Ohne Weclapp-Kategorie</option>
                 {categories.map((category) => (
                   <option key={category} value={category}>
                     {category}
