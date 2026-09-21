@@ -94,6 +94,16 @@ function articleText(article: StructuredArticle) {
   ].join(" ");
 }
 
+function citedSourceIds(article: StructuredArticle) {
+  return new Set([
+    ...article.intro.sourceIds,
+    ...article.sections.flatMap((section) =>
+      section.paragraphs.flatMap((paragraph) => paragraph.sourceIds)
+    ),
+    ...article.conclusion.sourceIds,
+  ]);
+}
+
 function validateParagraph(
   paragraph: BlogParagraph,
   sources: ResearchSource[],
@@ -152,6 +162,9 @@ function validateArticle(article: StructuredArticle, sources: ResearchSource[]) 
   }
   if (article.metaDescription.length < 120 || article.metaDescription.length > 170) {
     throw new Error("Die Meta-Beschreibung muss 120 bis 170 Zeichen lang sein.");
+  }
+  if (article.teaser.length < 100 || article.teaser.length > 320) {
+    throw new Error("Der Teaser muss 100 bis 320 Zeichen lang sein.");
   }
   if (/(?:als ki|künstliche intelligenz|laut meinem wissen|ich kann nicht)/iu.test(articleText(article))) {
     throw new Error("Der Beitrag enthält eine ungeeignete KI- oder Unsicherheitsformulierung.");
@@ -328,14 +341,16 @@ export async function researchBlogArticle(prompt: string) {
   const structured = JSON.parse(
     extractOutputText(structuredResponse)
   ) as StructuredArticle;
-  const wordCount = validateArticle(structured, sources);
+  const usedIds = citedSourceIds(structured);
+  const citedSources = sources.filter((source) => usedIds.has(source.id));
+  const wordCount = validateArticle(structured, citedSources);
   const slug = slugify(structured.title);
   if (!slug) throw new Error("Aus dem Blogtitel konnte keine URL erzeugt werden.");
   const article: BlogArticleContent = {
     ...structured,
     slug,
     wordCount,
-    html: renderHtml(structured, sources),
+    html: renderHtml(structured, citedSources),
   };
-  return { article, sources, dossier };
+  return { article, sources: citedSources, dossier };
 }

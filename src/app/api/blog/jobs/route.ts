@@ -6,6 +6,12 @@ import { assertSameOrigin } from "@/services/requestSecurity";
 
 export const dynamic = "force-dynamic";
 
+function publicJob<T extends { researchDossier?: string }>(job: T) {
+  const copy = { ...job };
+  delete copy.researchDossier;
+  return copy;
+}
+
 function readText(value: unknown, label: string, maximum = 1_200) {
   if (typeof value !== "string") throw new Error(`${label} fehlt.`);
   const text = value.trim();
@@ -59,7 +65,7 @@ export async function GET() {
         ["queued", "researching", "publishing"].includes(job.status)
     ).length;
     return NextResponse.json({
-      jobs,
+      jobs: jobs.map(publicJob),
       options,
       activeScheduled,
       scheduleCapacity: Math.max(0, 10 - activeScheduled),
