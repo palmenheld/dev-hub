@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { BlogArticleContent, ShopwareBlogOptions } from "@/types/blog";
 import { shopwareRequest } from "@/services/shopware/client";
 import { requireShopwareConfiguration } from "@/services/shopware/config";
+import { getPublishingSettings } from "@/services/shopware/dataStore";
 
 type BlogAuthorRecord = {
   id?: string;
@@ -22,10 +23,36 @@ type BlogEntryRecord = {
   slug?: string | null;
   title?: string | null;
   translated?: { slug?: string | null; title?: string | null };
+  cmsPageId?: string | null;
+  customFields?: Record<string, unknown> | null;
+};
+
+type CmsPageRecord = {
+  id?: string;
+  sections?: Array<{
+    blocks?: Array<{
+      slots?: Array<{
+        id?: string;
+        type?: string;
+        slot?: string;
+        config?: Record<string, unknown> | null;
+      }>;
+    }>;
+  }>;
 };
 
 function shopwareId() {
   return randomUUID().replaceAll("-", "");
+}
+
+async function requireBlogSalesChannelId() {
+  const { salesChannelId } = await getPublishingSettings();
+  if (!/^[0-9a-f]{32}$/i.test(salesChannelId)) {
+    throw new Error(
+      "Der Shopware-Verkaufskanal fehlt. Bitte die Shopware-Zuordnung im Hub speichern."
+    );
+  }
+  return salesChannelId;
 }
 
 export async function getShopwareBlogOptions(): Promise<ShopwareBlogOptions> {
@@ -106,6 +133,55 @@ async function findEntryBySlug(slug: string) {
   );
 }
 
+async function getEntry(entryId: string) {
+  const response = await shopwareRequest<{ data?: BlogEntryRecord[] }>(
+    "search/werkl-blog-entry",
+    {
+      method: "POST",
+      body: {
+        page: 1,
+        limit: 1,
+        filter: [{ type: "equals", field: "id", value: entryId }],
+        includes: {
+          werkl_blog_entry: ["id", "cmsPageId", "customFields"],
+        },
+      },
+    }
+  );
+  return response.data?.[0] ?? null;
+}
+
+async function getContentSlot(cmsPageId: string) {
+  const response = await shopwareRequest<{ data?: CmsPageRecord[] }>(
+    "search/cms-page",
+    {
+      method: "POST",
+      body: {
+        page: 1,
+        limit: 1,
+        filter: [{ type: "equals", field: "id", value: cmsPageId }],
+        associations: {
+          sections: {
+            associations: {
+              blocks: { associations: { slots: {} } },
+            },
+          },
+        },
+        includes: {
+          cms_page: ["id", "sections"],
+          cms_section: ["blocks"],
+          cms_block: ["slots"],
+          cms_slot: ["id", "type", "slot", "config"],
+        },
+      },
+    }
+  );
+  const slots = (response.data?.[0]?.sections ?? []).flatMap((section) =>
+    (section.blocks ?? []).flatMap((block) => block.slots ?? [])
+  );
+  return slots.find((slot) => slot.type === "text" || slot.slot === "content");
+}
+
 async function findPublicUrl(entryId: string) {
   try {
     const response = await shopwareRequest<{
@@ -141,6 +217,7 @@ export async function publishBlogArticle(input: {
   authorId: string;
   categoryId: string;
 }) {
+  const salesChannelId = await requireBlogSalesChannelId();
   const existing = await findEntryBySlug(input.article.slug);
   if (existing?.id) {
     return {
@@ -167,6 +244,7 @@ export async function publishBlogArticle(input: {
       metaDescription: input.article.metaDescription,
       content: input.article.html,
       customFields: {
+        salesChannelIds: [salesChannelId],
         palmenheld_keywords: input.article.keywords,
         palmenheld_word_count: input.article.wordCount,
         palmenheld_generated_by_hub: true,
@@ -218,4 +296,46 @@ export async function publishBlogArticle(input: {
     publicUrl: await findPublicUrl(entryId),
     alreadyExisted: false,
   };
+}
+
+export async function updatePublishedBlogArticle(input: {
+  entryId: string;
+  article: BlogArticleContent;
+}) {
+  const [entry, salesChannelId] = await Promise.all([
+    getEntry(input.entryId),
+    requireBlogSalesChannelId(),
+  ]);
+  if (!entry?.id || !entry.cmsPageId) {
+    throw new Error("Der veröffentlichte Shopware-Blogbeitrag wurde nicht gefunden.");
+  }
+  const contentSlot = await getContentSlot(entry.cmsPageId);
+  if (!contentSlot?.id) {
+    throw new Error("Das Textfeld der Shopware-Blog-Erlebniswelt wurde nicht gefunden.");
+  }
+
+  await shopwareRequest(`cms-slot/${contentSlot.id}`, {
+    method: "PATCH",
+    body: {
+      config: {
+        ...(contentSlot.config ?? {}),
+        content: { source: "static", value: input.article.html },
+        verticalAlign: { source: "static", value: null },
+      },
+    },
+  });
+  await shopwareRequest(`werkl-blog-entry/${entry.id}`, {
+    method: "PATCH",
+    body: {
+      content: input.article.html,
+      customFields: {
+        ...(entry.customFields ?? {}),
+        salesChannelIds: [salesChannelId],
+        palmenheld_keywords: input.article.keywords,
+        palmenheld_word_count: input.article.wordCount,
+        palmenheld_generated_by_hub: true,
+      },
+    },
+  });
+  return { entryId: entry.id, publicUrl: await findPublicUrl(entry.id) };
 }

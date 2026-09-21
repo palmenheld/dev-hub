@@ -1,6 +1,7 @@
 import type { BlogJob } from "@/types/blog";
 import { researchBlogArticle } from "./research";
-import { publishBlogArticle } from "./shopware";
+import { renderBlogHtml } from "./research";
+import { publishBlogArticle, updatePublishedBlogArticle } from "./shopware";
 import { getBlogJob, listBlogJobs, updateBlogJob } from "./store";
 
 const running = new Set<string>();
@@ -96,4 +97,21 @@ export async function runDueBlogJobs() {
     results.push({ id: job.id, status: updated?.status ?? "missing" });
   }
   return results;
+}
+
+export async function refreshPublishedBlogJob(jobId: string) {
+  const job = await getBlogJob(jobId);
+  if (!job?.article || !job.shopwareEntryId || job.status !== "published") {
+    throw new Error("Der veröffentlichte Blogbeitrag wurde nicht gefunden.");
+  }
+  const article = { ...job.article, html: renderBlogHtml(job.article) };
+  const result = await updatePublishedBlogArticle({
+    entryId: job.shopwareEntryId,
+    article,
+  });
+  return updateBlogJob(job.id, {
+    article,
+    shopwareUrl: result.publicUrl ?? job.shopwareUrl,
+    error: undefined,
+  });
 }

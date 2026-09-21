@@ -192,51 +192,29 @@ function validateArticle(article: StructuredArticle, sources: ResearchSource[]) 
   return words;
 }
 
-function citations(paragraph: BlogParagraph, sources: ResearchSource[]) {
-  const sourceMap = new Map(sources.map((source) => [source.id, source]));
-  return paragraph.sourceIds
-    .map((id) => sourceMap.get(id))
-    .filter((source): source is ResearchSource => Boolean(source))
-    .filter(
-      (source, index, all) =>
-        all.findIndex((candidate) => candidate.domain === source.domain) === index
-    )
-    .map(
-      (source) =>
-        `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(
-          source.title
-        )}" style="color:#17652e;text-decoration:none;">[${escapeHtml(source.id)}]</a>`
-    )
-    .join(" ");
+function renderParagraph(
+  paragraph: BlogParagraph,
+  options: { color?: string; fontWeight?: number } = {}
+) {
+  return `<p style="margin:0 0 1.1rem;line-height:1.75;color:${
+    options.color ?? "#24312a"
+  };font-weight:${options.fontWeight ?? 400};">${escapeHtml(paragraph.text)}</p>`;
 }
 
-function renderParagraph(paragraph: BlogParagraph, sources: ResearchSource[]) {
-  return `<p style="margin:0 0 1.1rem;line-height:1.75;color:#24312a;">${escapeHtml(
-    paragraph.text
-  )} <sup style="white-space:nowrap;font-size:.7em;">${citations(
-    paragraph,
-    sources
-  )}</sup></p>`;
-}
+type RenderableBlogArticle = Pick<
+  BlogArticleContent,
+  "title" | "teaser" | "intro" | "sections" | "conclusion"
+>;
 
-function renderHtml(article: StructuredArticle, sources: ResearchSource[]) {
+export function renderBlogHtml(article: RenderableBlogArticle) {
   const sections = article.sections
     .map(
       (section) => `<section style="margin:2rem 0;">
   <h2 style="margin:0 0 .8rem;color:#0f4f24;font-size:1.55rem;line-height:1.25;">${escapeHtml(
     section.heading
   )}</h2>
-  ${section.paragraphs.map((paragraph) => renderParagraph(paragraph, sources)).join("\n")}
+  ${section.paragraphs.map((paragraph) => renderParagraph(paragraph)).join("\n")}
 </section>`
-    )
-    .join("\n");
-  const sourceList = sources
-    .map(
-      (source) => `<li style="margin:.45rem 0;"><a href="${escapeHtml(
-        source.url
-      )}" target="_blank" rel="noopener noreferrer" style="color:#17652e;">${escapeHtml(
-        source.title
-      )}</a> <span style="color:#66736b;">(${escapeHtml(source.publisher)})</span></li>`
     )
     .join("\n");
 
@@ -251,17 +229,15 @@ function renderHtml(article: StructuredArticle, sources: ResearchSource[]) {
     )}</p>
   </header>
   <div style="padding:0 .5rem;">
-    <div style="font-size:1.08rem;">${renderParagraph(article.intro, sources)}</div>
+    <div style="font-size:1.08rem;">${renderParagraph(article.intro, {
+      color: "#0f4f24",
+      fontWeight: 600,
+    })}</div>
     ${sections}
     <aside style="margin:2.25rem 0;padding:1.4rem;border-left:5px solid #e4a300;background:#fff5d8;border-radius:0 14px 14px 0;">
       <h2 style="margin:0 0 .7rem;color:#0f4f24;font-size:1.35rem;">Das Wichtigste zum Schluss</h2>
-      ${renderParagraph(article.conclusion, sources)}
+      ${renderParagraph(article.conclusion)}
     </aside>
-    <section style="margin-top:2.5rem;padding-top:1.25rem;border-top:1px solid #dce6df;">
-      <h2 style="color:#0f4f24;font-size:1.2rem;">Quellen und weiterführende Informationen</h2>
-      <ol style="padding-left:1.4rem;line-height:1.5;">${sourceList}</ol>
-      <p style="font-size:.82rem;color:#66736b;">Redaktionell geprüft und auf Basis voneinander unabhängiger Fachquellen erstellt.</p>
-    </section>
   </div>
 </article>`;
 }
@@ -371,7 +347,7 @@ export async function researchBlogArticle(prompt: string) {
     ...structured,
     slug,
     wordCount,
-    html: renderHtml(structured, citedSources),
+    html: renderBlogHtml(structured),
   };
   return { article, sources: citedSources, dossier };
 }
