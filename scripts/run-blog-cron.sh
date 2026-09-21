@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-secret_file="${PALMENHELD_SECRET_FILE:-/srv/chatgpt-work-secrets/weclapp.env}"
+secret_file="${PALMENHELD_SECRET_FILE:-/srv/palmenheld-dev-hub/ops/.env}"
 secret="$({ sed -n 's/^BLOG_CRON_SECRET=//p' "$secret_file" || true; } | head -n 1)"
 secret="${secret#\"}"
 secret="${secret%\"}"

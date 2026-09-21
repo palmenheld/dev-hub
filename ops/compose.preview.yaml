@@ -28,6 +28,7 @@ services:
     environment:
       HOME: /tmp/palmenheld-preview-home
       NEXT_TELEMETRY_DISABLED: "1"
+      BLOG_CRON_SECRET: "${BLOG_CRON_SECRET:-}"
     ports:
       - "127.0.0.1:3002:3000"
     volumes:
