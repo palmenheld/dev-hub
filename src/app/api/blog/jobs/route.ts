@@ -12,7 +12,7 @@ function publicJob<T extends { researchDossier?: string }>(job: T) {
   return copy;
 }
 
-function readText(value: unknown, label: string, maximum = 1_200) {
+function readText(value: unknown, label: string, maximum = 5_000) {
   if (typeof value !== "string") throw new Error(`${label} fehlt.`);
   const text = value.trim();
   if (text.length < 8) throw new Error(`${label} braucht mindestens 8 Zeichen.`);

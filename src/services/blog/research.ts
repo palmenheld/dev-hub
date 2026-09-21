@@ -94,6 +94,24 @@ function articleText(article: StructuredArticle) {
   ].join(" ");
 }
 
+function metaDescriptionFromArticle(article: StructuredArticle) {
+  const articleSummary = [
+    article.teaser,
+    article.intro.text,
+    article.sections[0]?.paragraphs[0]?.text,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (articleSummary.length <= 160) return articleSummary;
+
+  const candidate = articleSummary.slice(0, 159);
+  const wordBoundary = candidate.lastIndexOf(" ");
+  const end = wordBoundary >= 120 ? wordBoundary : 159;
+  return `${candidate.slice(0, end).replace(/[\s,;:.-]+$/u, "")}…`;
+}
+
 function citedSourceIds(article: StructuredArticle) {
   return new Set([
     ...article.intro.sourceIds,
@@ -160,8 +178,10 @@ function validateArticle(article: StructuredArticle, sources: ResearchSource[]) 
   if (article.metaTitle.length < 35 || article.metaTitle.length > 65) {
     throw new Error("Der Meta-Titel muss 35 bis 65 Zeichen lang sein.");
   }
-  if (article.metaDescription.length < 120 || article.metaDescription.length > 170) {
-    throw new Error("Die Meta-Beschreibung muss 120 bis 170 Zeichen lang sein.");
+  if (article.metaDescription.length < 120 || article.metaDescription.length > 160) {
+    throw new Error(
+      "Aus dem fertigen Artikel konnte keine passende SEO-Meta-Beschreibung erzeugt werden."
+    );
   }
   if (article.teaser.length < 100 || article.teaser.length > 320) {
     throw new Error("Der Teaser muss 100 bis 320 Zeichen lang sein.");
@@ -293,11 +313,11 @@ export async function researchBlogArticle(prompt: string) {
       {
         role: "developer",
         content:
-          "Du erstellst ein deutschsprachiges Recherche-Dossier für den Palmenheld-Ratgeber. Bevorzuge Universitäten, botanische Gärten, Behörden, Fachgesellschaften, wissenschaftliche Veröffentlichungen sowie etablierte Gartenbau-Institutionen. Händlerquellen dürfen nur praktische oder marktrelevante Hinweise ergänzen. Nutze keine KI-Texte, sozialen Netzwerke, Foren, Marktplätze, Wikipedia oder anonyme SEO-/Affiliate-Seiten. Prüfe jede Kernaussage mit mindestens zwei voneinander unabhängigen Organisationen; sicherheitsrelevante, gesundheitliche oder konkrete Zahlenangaben mit mindestens drei. Notiere zu jeder Aussage vollständige URLs. Recherchiere gezielt statt das Thema unnötig auszuweiten.",
+          "Du erstellst ein deutschsprachiges Recherche-Dossier für den Palmenheld-Ratgeber. Die Nutzereingabe ist ein redaktionelles Briefing mit Thema, Stichwörtern, Best Practices und gewünschten Schwerpunkten. Sie ist weder fertiger Kundentext noch Meta-Beschreibung und darf nicht ungeprüft oder wörtlich übernommen werden. Bevorzuge Universitäten, botanische Gärten, Behörden, Fachgesellschaften, wissenschaftliche Veröffentlichungen sowie etablierte Gartenbau-Institutionen. Händlerquellen dürfen nur praktische oder marktrelevante Hinweise ergänzen. Nutze keine KI-Texte, sozialen Netzwerke, Foren, Marktplätze, Wikipedia oder anonyme SEO-/Affiliate-Seiten. Prüfe jede Kernaussage mit mindestens zwei voneinander unabhängigen Organisationen; sicherheitsrelevante, gesundheitliche oder konkrete Zahlenangaben mit mindestens drei. Notiere zu jeder Aussage vollständige URLs. Recherchiere gezielt statt das Thema unnötig auszuweiten.",
       },
       {
         role: "user",
-        content: `Erstelle ein belastbares Dossier für einen hilfreichen, natürlich klingenden deutschen Blogartikel. Thema und redaktionelle Stichwörter:\n\n${prompt}\n\nZielgruppe sind Pflanzenliebhaber und Kunden eines spezialisierten deutschen Pflanzenhändlers. Das Dossier soll praktische Fragen beantworten, Fehlannahmen vermeiden und 8 bis 18 wirklich relevante Quellen verwenden. Werbung darf Fakten niemals verdrängen.`,
+        content: `Erstelle ein belastbares Dossier für einen hilfreichen, natürlich klingenden deutschen Blogartikel.\n\nREDAKTIONELLES BRIEFING DES NUTZERS:\n${prompt}\n\nBehandle dieses Briefing als Arbeitsanweisung: Berücksichtige die gewünschten Punkte inhaltlich, überprüfe sie aber fachlich. Kopiere es nicht als Beschreibung oder Metadaten. Zielgruppe sind Pflanzenliebhaber und Kunden eines spezialisierten deutschen Pflanzenhändlers. Das Dossier soll praktische Fragen beantworten, Fehlannahmen vermeiden und 8 bis 18 wirklich relevante Quellen verwenden. Werbung darf Fakten niemals verdrängen.`,
       },
     ],
   });
@@ -318,11 +338,11 @@ export async function researchBlogArticle(prompt: string) {
       {
         role: "developer",
         content:
-          "Du bist ein erfahrener deutscher Gartenbau-Redakteur und strenger Faktenprüfer. Schreibe konkret, warm, souverän und abwechslungsreich, ohne KI-Floskeln, aufgeblähte Einleitungen, erfundene Erfahrungen oder interne Unsicherheit. Nutze ausschließlich belegte Inhalte aus dem Dossier. Der Text soll wie von einer fachkundigen Palmenheld-Redaktion klingen, für Leser einen echten praktischen Nutzen haben und organisch für Suchmaschinen strukturiert sein. Keine Quelle darf eine Aussage allein tragen. importantClaim=true gilt für Zahlen, Temperaturen, Sicherheit, Gesundheit, Giftigkeit und andere folgenreiche Aussagen; dafür sind mindestens drei unabhängige Quellen-IDs nötig. Quellen-IDs gehören in die Datenstruktur, nicht in den Fließtext.",
+          "Du bist ein erfahrener deutscher Gartenbau-Redakteur und strenger Faktenprüfer. Die Nutzereingabe ist ausschließlich ein redaktionelles Briefing; formuliere daraus eigenständigen Kundentext und kopiere sie weder als Einleitung noch als Meta-Beschreibung. Schreibe konkret, warm, souverän und abwechslungsreich, ohne KI-Floskeln, aufgeblähte Einleitungen, erfundene Erfahrungen oder interne Unsicherheit. Nutze ausschließlich belegte Inhalte aus dem Dossier. Der Text soll wie von einer fachkundigen Palmenheld-Redaktion klingen, für Leser einen echten praktischen Nutzen haben und organisch für Suchmaschinen strukturiert sein. Keine Quelle darf eine Aussage allein tragen. importantClaim=true gilt für Zahlen, Temperaturen, Sicherheit, Gesundheit, Giftigkeit und andere folgenreiche Aussagen; dafür sind mindestens drei unabhängige Quellen-IDs nötig. Quellen-IDs gehören in die Datenstruktur, nicht in den Fließtext.",
       },
       {
         role: "user",
-        content: `Verfasse den fertigen Blogartikel aus dem folgenden Material.\n\nVORGABEN:\n- 900 bis 1.400 Wörter, zulässiger Prüfbereich 700 bis 1.800.\n- Vier bis neun aussagekräftige H2-Abschnitte mit je ein bis drei Absätzen.\n- Jeder Absatz enthält 100 bis etwa 220 Wörter und mindestens zwei unabhängige Quellen-IDs.\n- Für importantClaim=true mindestens drei unabhängige Quellen-IDs.\n- Natürliches Deutsch, Sie-Ansprache nur wo sinnvoll, keine Keyword-Stapelung und keine Formulierungen über KI oder Rechercheunsicherheit.\n- Titel höchstens 90 Zeichen.\n- Meta-Titel 35 bis 65 Zeichen.\n- Meta-Beschreibung 120 bis 170 Zeichen.\n- Teaser ungefähr 140 bis 300 Zeichen.\n- Das Fazit soll praktisch sein und nicht bloß die Einleitung wiederholen.\n\nREDAKTIONELLE STICHWÖRTER:\n${prompt}\n\nQUELLENKATALOG:\n${sourceCatalogue(
+        content: `Verfasse den fertigen Blogartikel aus dem folgenden Material.\n\nVORGABEN:\n- 900 bis 1.400 Wörter, zulässiger Prüfbereich 700 bis 1.800.\n- Vier bis neun aussagekräftige H2-Abschnitte mit je ein bis drei Absätzen.\n- Jeder Absatz enthält 100 bis etwa 220 Wörter und mindestens zwei unabhängige Quellen-IDs.\n- Für importantClaim=true mindestens drei unabhängige Quellen-IDs.\n- Natürliches Deutsch, Sie-Ansprache nur wo sinnvoll, keine Keyword-Stapelung und keine Formulierungen über KI oder Rechercheunsicherheit.\n- Titel höchstens 90 Zeichen.\n- Meta-Titel 35 bis 65 Zeichen.\n- Meta-Beschreibung als eigenständige Zusammenfassung des fertigen Artikels, nicht des Briefings.\n- Teaser ungefähr 140 bis 300 Zeichen.\n- Das Fazit soll praktisch sein und nicht bloß die Einleitung wiederholen.\n\nREDAKTIONELLES BRIEFING – INHALTLICH BERÜCKSICHTIGEN, NICHT WÖRTLICH ÜBERNEHMEN:\n${prompt}\n\nQUELLENKATALOG:\n${sourceCatalogue(
           sources
         )}\n\nDOSSIER:\n${dossier}`,
       },
@@ -341,6 +361,7 @@ export async function researchBlogArticle(prompt: string) {
   const structured = JSON.parse(
     extractOutputText(structuredResponse)
   ) as StructuredArticle;
+  structured.metaDescription = metaDescriptionFromArticle(structured);
   const usedIds = citedSourceIds(structured);
   const citedSources = sources.filter((source) => usedIds.has(source.id));
   const wordCount = validateArticle(structured, citedSources);

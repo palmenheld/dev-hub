@@ -267,18 +267,21 @@ export default function BlogManager() {
               <div>
                 <h2 className="text-xl text-[var(--ph-green-dark)]">Jetzt veröffentlichen</h2>
                 <label className="mt-4 block text-sm font-bold text-slate-800" htmlFor="blog-prompt">
-                  Thema, Stichwörter und gewünschte Schwerpunkte
+                  Redaktionelles Briefing an die KI
                 </label>
                 <textarea
                   id="blog-prompt"
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
                   rows={7}
-                  maxLength={1_200}
-                  placeholder="z. B. Olivenbaum im Kübel überwintern, Standort, Gießen im Winter, typische Fehler, praxisnah für deutsche Winter"
+                  maxLength={5_000}
+                  placeholder="Thema, gewünschte Schwerpunkte, Best Practices, Ton und wichtige Hinweise – z. B. Olivenbaum ausgepflanzt überwintern, Pflanzenschutzsack, Heizung erst ab dauerhaft −10 °C, Gießen und Kontrollen erwähnen"
                   className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm leading-6 outline-none focus:border-[var(--ph-green)] focus:ring-2 focus:ring-green-100"
                 />
-                <div className="mt-1 text-right text-xs text-slate-500">{prompt.length}/1.200 Zeichen</div>
+                <div className="mt-1 flex items-start justify-between gap-4 text-xs text-slate-500">
+                  <span>Die Angaben steuern den Artikel. SEO-Metadaten entstehen separat aus dem fertigen Text.</span>
+                  <span className="shrink-0">{prompt.length}/5.000 Zeichen</span>
+                </div>
               </div>
               <div className="space-y-4">
                 <label className="block text-sm font-bold text-slate-800">
@@ -339,13 +342,14 @@ export default function BlogManager() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-bold text-[var(--ph-green-dark)] shadow-sm">
                     {index + 1}
                   </div>
-                  <input
+                  <textarea
                     value={row.prompt}
                     onChange={(event) =>
                       setRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, prompt: event.target.value } : item))
                     }
-                    maxLength={1_200}
-                    placeholder="Stichwörter und Schwerpunkt"
+                    rows={2}
+                    maxLength={5_000}
+                    placeholder="Redaktionelles Briefing: Thema, Best Practices und wichtige Hinweise"
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"
                   />
                   <input
