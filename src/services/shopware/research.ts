@@ -204,7 +204,7 @@ export function isAllowedResearchSource(source: {
   return !AI_SOURCE_MARKERS.test(`${source.title} ${source.url}`);
 }
 
-function collectSources(
+export function collectResearchSources(
   response: OpenAIResponse,
   dossierText = ""
 ): ResearchSource[] {
@@ -375,7 +375,7 @@ Prüfe zuerst die botanische Identität. Ermittle danach den in Deutschland übl
   });
 
   const dossier = extractOutputText(dossierResponse);
-  const sources = collectSources(dossierResponse, dossier);
+  const sources = collectResearchSources(dossierResponse, dossier);
   if (sources.length < 3) {
     throw new Error(
       "Die Recherche lieferte zu wenige nachvollziehbare Quellen. Der Entwurf wurde nicht erstellt."

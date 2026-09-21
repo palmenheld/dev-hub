@@ -48,3 +48,18 @@ export function assertEbayPublishKey(request: Request) {
 
   assertEbaySecurityKey(request);
 }
+
+export function assertBlogCronKey(request: Request) {
+  const expected = process.env.BLOG_CRON_SECRET?.trim();
+  if (!expected) {
+    throw new Error(
+      "Der automatische Blog-Zeitplan ist serverseitig noch nicht eingerichtet."
+    );
+  }
+  const provided = request.headers.get("x-palmenheld-blog-cron")?.trim() || "";
+  const expectedHash = createHash("sha256").update(expected).digest();
+  const providedHash = createHash("sha256").update(provided).digest();
+  if (!provided || !timingSafeEqual(expectedHash, providedHash)) {
+    throw new Error("Der Zeitplan-Aufruf ist nicht autorisiert.");
+  }
+}

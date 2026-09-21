@@ -9,6 +9,7 @@ export const navigation: NavItem[] = [
   { label: "Aufgaben", href: "/tasks" },
   { label: "KI-Assistent", href: "/ai" },
   { label: "Medien", href: "/media" },
+  { label: "Blog-Manager", href: "/blog" },
   { label: "Angebotsverwaltung", href: "/offers" },
   { label: "Verbindungseinstellungen", href: "/connection-settings" },
   { label: "Shopware Templates", href: "/channels/shopware/templates" },
