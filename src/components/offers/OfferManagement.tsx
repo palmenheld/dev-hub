@@ -16,7 +16,19 @@ type ChannelFilter =
   | "shopware"
   | "ebay"
   | "kleinanzeigen";
+type CreateChannel = "shopware" | "ebay" | "kleinanzeigen";
+type CreationFeedback = { kind: "success" | "error"; message: string };
 const PAGE_SIZE = 100;
+
+const channelLabels: Record<CreateChannel, string> = {
+  shopware: "Shopware",
+  ebay: "eBay",
+  kleinanzeigen: "Kleinanzeigen",
+};
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 function money(value?: number) {
   if (value === undefined) return "–";
@@ -110,6 +122,15 @@ export default function OfferManagement() {
   const [onlyComplete, setOnlyComplete] = useState(false);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
+  const [selectedChannels, setSelectedChannels] = useState<
+    Record<string, CreateChannel[]>
+  >({});
+  const [creating, setCreating] = useState(false);
+  const [creationProgress, setCreationProgress] = useState<
+    Record<string, string>
+  >({});
+  const [creationFeedback, setCreationFeedback] =
+    useState<CreationFeedback | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -282,6 +303,158 @@ export default function OfferManagement() {
     (page - 1) * PAGE_SIZE,
     page * PAGE_SIZE
   );
+  const selectedTaskCount = Object.values(selectedChannels).reduce(
+    (sum, channels) => sum + channels.length,
+    0
+  );
+
+  function toggleChannel(articleId: string, channel: CreateChannel) {
+    if (creating) return;
+    setSelectedChannels((current) => {
+      const selected = new Set(current[articleId] || []);
+      if (selected.has(channel)) selected.delete(channel);
+      else selected.add(channel);
+      const next = { ...current };
+      if (selected.size) next[articleId] = [...selected];
+      else delete next[articleId];
+      return next;
+    });
+  }
+
+  function selectChannels(articleId: string, channels: CreateChannel[]) {
+    if (creating) return;
+    setSelectedChannels((current) => ({
+      ...current,
+      [articleId]: [...new Set(channels)],
+    }));
+  }
+
+  function markProgress(articleId: string, message: string) {
+    setCreationProgress((current) => ({ ...current, [articleId]: message }));
+  }
+
+  async function responsePayload<T>(response: Response) {
+    const payload = (await response.json()) as T & { error?: string };
+    if (!response.ok) {
+      throw new Error(payload.error || "Der Entwurf konnte nicht erstellt werden.");
+    }
+    return payload;
+  }
+
+  async function waitForEbayDraft(jobId: string) {
+    for (let attempt = 0; attempt < 150; attempt += 1) {
+      await delay(1_500);
+      const response = await fetch(
+        `/api/channels/ebay/draft-jobs?id=${encodeURIComponent(jobId)}`,
+        { cache: "no-store" }
+      );
+      const payload = await responsePayload<{
+        job?: { status: string; error?: string };
+        draft?: EbayListingDraft;
+      }>(response);
+      if (payload.job?.status === "failed") {
+        throw new Error(payload.job.error || "Der eBay-Entwurf ist fehlgeschlagen.");
+      }
+      if (payload.job?.status === "completed" && payload.draft) {
+        return payload.draft;
+      }
+    }
+    throw new Error("Die eBay-Erstellung dauert zu lange. Der Auftrag läuft möglicherweise weiter.");
+  }
+
+  async function createSelectedDrafts() {
+    if (!selectedTaskCount || creating) return;
+    const work = Object.entries(selectedChannels).filter(
+      ([, channels]) => channels.length
+    );
+    setCreating(true);
+    setCreationFeedback(null);
+    setCreationProgress({});
+    const errors: string[] = [];
+    let completed = 0;
+
+    for (const [articleId, channels] of work) {
+      const candidate = candidates.find((item) => item.articleId === articleId);
+      if (!candidate) continue;
+      const successful = new Set<CreateChannel>();
+      const ordered = (["shopware", "ebay", "kleinanzeigen"] as const).filter(
+        (channel) => channels.includes(channel)
+      );
+      for (const channel of ordered) {
+        markProgress(articleId, `${channelLabels[channel]} wird erstellt…`);
+        try {
+          if (channel === "shopware") {
+            const response = await fetch("/api/channels/shopware/drafts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ articleId }),
+            });
+            const payload = await responsePayload<{ draft?: ShopwareProductDraft }>(response);
+            if (!payload.draft) throw new Error("Shopware hat keinen Entwurf zurückgegeben.");
+            setShopwareDrafts((current) => [
+              payload.draft!,
+              ...current.filter((draft) => draft.source.articleId !== articleId),
+            ]);
+          } else if (channel === "ebay") {
+            const response = await fetch("/api/channels/ebay/draft-jobs", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ articleId }),
+            });
+            const payload = await responsePayload<{ job?: { id: string } }>(response);
+            if (!payload.job) throw new Error("eBay hat keinen Auftrag zurückgegeben.");
+            const draft = await waitForEbayDraft(payload.job.id);
+            setEbayDrafts((current) => [
+              draft,
+              ...current.filter((item) => item.source.articleId !== articleId),
+            ]);
+          } else {
+            const response = await fetch("/api/channels/kleinanzeigen/drafts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ articleId }),
+            });
+            const payload = await responsePayload<{ listing?: KleinanzeigenListing }>(response);
+            if (!payload.listing) {
+              throw new Error("Kleinanzeigen hat keinen Entwurf zurückgegeben.");
+            }
+            setKleinanzeigenListings((current) => [
+              payload.listing!,
+              ...current.filter(
+                (listing) =>
+                  listing.articleId !== articleId &&
+                  listing.sku !== candidate.articleNumber
+              ),
+            ]);
+          }
+          successful.add(channel);
+          completed += 1;
+          markProgress(articleId, `${channelLabels[channel]} wurde erstellt.`);
+        } catch (caught) {
+          const message = caught instanceof Error ? caught.message : "Unbekannter Fehler";
+          errors.push(`${candidate.articleNumber} · ${channelLabels[channel]}: ${message}`);
+          markProgress(articleId, `${channelLabels[channel]} fehlgeschlagen: ${message}`);
+        }
+      }
+      setSelectedChannels((current) => {
+        const remaining = (current[articleId] || []).filter(
+          (channel) => !successful.has(channel)
+        );
+        const next = { ...current };
+        if (remaining.length) next[articleId] = remaining;
+        else delete next[articleId];
+        return next;
+      });
+    }
+
+    setCreationFeedback({
+      kind: errors.length ? "error" : "success",
+      message: errors.length
+        ? `${completed} Entwurf/Entwürfe erstellt. ${errors.join(" | ")}`
+        : `${completed} Entwurf/Entwürfe wurden erstellt und können jetzt geprüft werden.`,
+    });
+    setCreating(false);
+  }
 
   return (
     <div className="mx-auto max-w-[1800px]">
@@ -309,6 +482,16 @@ export default function OfferManagement() {
       {error && (
         <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
           {error}
+        </div>
+      )}
+
+      {creationFeedback && (
+        <div className={`mt-5 rounded-xl border px-4 py-3 text-sm font-medium ${
+          creationFeedback.kind === "success"
+            ? "border-green-200 bg-green-50 text-green-800"
+            : "border-amber-200 bg-amber-50 text-amber-900"
+        }`}>
+          {creationFeedback.message}
         </div>
       )}
 
@@ -403,6 +586,37 @@ export default function OfferManagement() {
               {busy ? "Lädt…" : "Neu laden"}
             </button>
           </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+            <div>
+              <strong className="text-sm text-green-950">
+                {selectedTaskCount
+                  ? `${selectedTaskCount} Kanalentwurf/Kanalentwürfe ausgewählt`
+                  : "Gewünschte Kanäle direkt in der Tabelle anhaken"}
+              </strong>
+              <p className="mt-0.5 text-xs text-green-800">
+                Bei mehreren Kanälen wird vorhandene Recherche automatisch wiederverwendet.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {selectedTaskCount > 0 && !creating && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedChannels({})}
+                  className="rounded-lg border border-green-300 bg-white px-3 py-2 text-sm font-semibold text-green-900"
+                >
+                  Auswahl löschen
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void createSelectedDrafts()}
+                disabled={!selectedTaskCount || creating}
+                className="rounded-lg bg-[var(--ph-green-dark)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+              >
+                {creating ? "Entwürfe werden erstellt…" : "Ausgewählte Entwürfe erstellen"}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -436,6 +650,15 @@ export default function OfferManagement() {
                   const shopware = shopwareState(candidate, shopwareDraft);
                   const ebay = ebayState(ebayDraft);
                   const kleinanzeigenStatus = kleinanzeigenState(kleinanzeigen);
+                  const availableChannels: CreateChannel[] = [
+                    !shopwareDraft && !candidate.alreadyInShopware
+                      ? "shopware"
+                      : null,
+                    !ebayDraft ? "ebay" : null,
+                    !kleinanzeigen ? "kleinanzeigen" : null,
+                  ].filter(
+                    (channel): channel is CreateChannel => Boolean(channel)
+                  );
                   const shopwareHref = shopwareDraft
                     ? `/channels/shopware?articleId=${encodeURIComponent(candidate.articleId)}`
                     : candidate.alreadyInShopware
@@ -479,6 +702,18 @@ export default function OfferManagement() {
                         }`}>
                           {candidate.active !== false ? "Aktiv" : "Inaktiv"}
                         </span>
+                        {availableChannels.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              selectChannels(candidate.articleId, availableChannels)
+                            }
+                            disabled={creating}
+                            className="mt-3 block rounded-lg border border-green-300 bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-900 disabled:opacity-40"
+                          >
+                            Alle freien Kanäle wählen
+                          </button>
+                        )}
                       </td>
                       <td className="min-w-40 px-4 py-4">
                         <strong>{money(candidate.price)}</strong>
@@ -487,6 +722,17 @@ export default function OfferManagement() {
                         <p className="text-slate-500">Bestand: {candidate.stock ?? "–"}</p>
                       </td>
                       <td className="min-w-52 px-4 py-4">
+                        {!shopwareDraft && !candidate.alreadyInShopware && (
+                          <label className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={(selectedChannels[candidate.articleId] || []).includes("shopware")}
+                              onChange={() => toggleChannel(candidate.articleId, "shopware")}
+                              disabled={creating}
+                            />
+                            Für Shopware erstellen
+                          </label>
+                        )}
                         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${shopware.tone}`}>
                           {shopware.label}
                         </span>
@@ -502,6 +748,17 @@ export default function OfferManagement() {
                         </div>
                       </td>
                       <td className="min-w-52 px-4 py-4">
+                        {!ebayDraft && (
+                          <label className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={(selectedChannels[candidate.articleId] || []).includes("ebay")}
+                              onChange={() => toggleChannel(candidate.articleId, "ebay")}
+                              disabled={creating}
+                            />
+                            Für eBay erstellen
+                          </label>
+                        )}
                         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ebay.tone}`}>
                           {ebay.label}
                         </span>
@@ -515,6 +772,17 @@ export default function OfferManagement() {
                         </div>
                       </td>
                       <td className="min-w-56 px-4 py-4">
+                        {!kleinanzeigen && (
+                          <label className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={(selectedChannels[candidate.articleId] || []).includes("kleinanzeigen")}
+                              onChange={() => toggleChannel(candidate.articleId, "kleinanzeigen")}
+                              disabled={creating}
+                            />
+                            Für Kleinanzeigen erstellen
+                          </label>
+                        )}
                         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${kleinanzeigenStatus.tone}`}>
                           {kleinanzeigenStatus.label}
                         </span>
@@ -526,6 +794,11 @@ export default function OfferManagement() {
                             {kleinanzeigen ? "Kleinanzeige pflegen" : "Entwurf vorbereiten"}
                           </Link>
                         </div>
+                        {creationProgress[candidate.articleId] && (
+                          <p className="mt-2 text-xs font-medium text-blue-700">
+                            {creationProgress[candidate.articleId]}
+                          </p>
+                        )}
                       </td>
                     </tr>
                   );
