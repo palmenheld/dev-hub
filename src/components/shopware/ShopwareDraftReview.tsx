@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { emptyJsonPost } from "@/lib/http";
 import { ShopwareProductDraft } from "@/types/shopwarePublishing";
+import BacksyncStatus from "@/components/weclapp/BacksyncStatus";
 
 export default function ShopwareDraftReview({
   draft,
@@ -315,6 +316,8 @@ export default function ShopwareDraftReview({
               : "Shopware"} (SKU {draft.contentReuse.sourceArticleNumber}) übernommen. Die Beschreibung wurde ohne neue Recherche im Shopware-Stil aufgebaut.
         </p>
       )}
+
+      <BacksyncStatus value={draft.weclappSync} />
 
       {error && (
         <p className="mt-3 rounded-lg bg-red-100 px-3 py-2 text-sm font-semibold text-red-700">

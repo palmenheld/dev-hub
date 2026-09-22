@@ -16,6 +16,14 @@ import {
   channelContentReuse,
   findReusableChannelContent,
 } from "@/services/channelContent";
+import { syncShopwareDraft } from "@/services/weclapp/channelBacksync";
+
+async function saveDraftWithWeclappSync(draft: ShopwareProductDraft) {
+  await saveDraft(draft);
+  const synced = { ...draft, weclappSync: await syncShopwareDraft(draft) };
+  await saveDraft(synced);
+  return synced;
+}
 
 const REQUIRED_BLOCKS = [
   "identity",
@@ -322,8 +330,7 @@ async function createProductDraftUnlocked(
     templateName: template?.name,
   };
 
-  await saveDraft(draft);
-  return draft;
+  return saveDraftWithWeclappSync(draft);
 }
 
 type EditableDraftInput = {
@@ -510,8 +517,7 @@ async function updateProductDraftUnlocked(
     approvedAt: undefined,
     updatedAt: new Date().toISOString(),
   };
-  await saveDraft(updated);
-  return updated;
+  return saveDraftWithWeclappSync(updated);
 }
 
 async function approveProductDraftUnlocked(draftId: string) {

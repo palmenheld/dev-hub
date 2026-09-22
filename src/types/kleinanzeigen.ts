@@ -5,6 +5,7 @@ import type {
   ProductResearch,
   ResearchSource,
 } from "@/types/shopwarePublishing";
+import type { WeclappBacksyncResult } from "@/types/weclappBacksync";
 
 export type KleinanzeigenListingStatus =
   | "draft"
@@ -64,6 +65,7 @@ export type KleinanzeigenListing = {
   lastError?: string;
   createdAt: string;
   updatedAt: string;
+  weclappSync?: WeclappBacksyncResult;
 };
 
 export type KleinanzeigenConnection = {

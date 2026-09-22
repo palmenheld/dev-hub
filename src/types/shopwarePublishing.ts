@@ -166,6 +166,7 @@ export type ShopwareProductDraft = {
   pendingShopwareProductId?: string;
   pendingMediaIds?: string[];
   lastError?: string;
+  weclappSync?: WeclappBacksyncResult;
 };
 
 export type ShopwareEntityOption = {
@@ -192,3 +193,4 @@ export type PublishingSetup = {
     salesChannels: ShopwareEntityOption[];
   };
 };
+import type { WeclappBacksyncResult } from "@/types/weclappBacksync";

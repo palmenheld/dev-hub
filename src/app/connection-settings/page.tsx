@@ -6,6 +6,7 @@ import { getEbayConnection } from "@/services/ebay/config";
 import { getEbaySettings } from "@/services/ebay/store";
 import { getKleinanzeigenConnection } from "@/services/kleinanzeigen";
 import { getShopwareConnection } from "@/services/shopware";
+import { getWeclappBacksyncStatus } from "@/services/weclapp/channelBacksync";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ export default async function ConnectionSettingsPage({
     ? (requestedTab as Tab)
     : "shopware";
   const settings = await getEbaySettings();
+  const backsync = await getWeclappBacksyncStatus();
   const connected = first(parameters.ebayConnected);
   const ebayError = first(parameters.ebayError);
   const ebayFeedback = connected === "1"
@@ -110,6 +112,52 @@ export default async function ConnectionSettingsPage({
             Zur Angebotsverwaltung
           </Link>
         </header>
+
+        <section className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-[var(--ph-green-dark)]">
+                Rückschreiben nach Weclapp
+              </h2>
+              <p className="mt-1 max-w-4xl text-sm text-slate-600">
+                Beim Erstellen und Bearbeiten werden Kanaltexte, Pflanzendaten,
+                externe IDs und der jeweilige Verkaufspreis am Weclapp-Artikel
+                aktualisiert. Standardpreise werden dabei nicht überschrieben.
+              </p>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${backsync.enabled ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
+              {backsync.enabled ? "Aktiv" : "Nicht verfügbar"}
+            </span>
+          </div>
+          {backsync.error && (
+            <p className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-800">
+              {backsync.error}
+            </p>
+          )}
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {backsync.channels.map((item) => (
+              <div key={item.channel} className={`rounded-xl border p-4 ${item.ready ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <strong>{item.label}</strong>
+                  <span className={`rounded-full px-2 py-1 text-xs font-semibold ${item.ready ? "bg-green-200 text-green-900" : "bg-amber-200 text-amber-950"}`}>
+                    {item.ready ? "Bereit" : "Preis fehlt"}
+                  </span>
+                </div>
+                <p className="mt-2 text-sm">
+                  {item.ready
+                    ? `${item.salesChannelName} (${item.salesChannel})`
+                    : "Kein eigener aktiver Brutto-Vertriebskanal gefunden."}
+                </p>
+                {!item.ready && item.channel === "kleinanzeigen" && (
+                  <p className="mt-2 text-xs text-amber-950">
+                    In Weclapp einen zusätzlichen Brutto-Vertriebskanal
+                    „Kleinanzeigen“ aktivieren. Danach wird er automatisch erkannt.
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
 
         <nav className="mt-6 flex flex-wrap gap-2 rounded-2xl border bg-white p-2 shadow-sm">
           {tabs.map((item) => (

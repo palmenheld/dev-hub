@@ -16,6 +16,7 @@ import { getEbayDraftImage } from "./images";
 import { ebayFormDataRequest, ebayRequest } from "./client";
 import { getEbayConnection, missingPublishingSettings } from "./config";
 import { getEbayDraft, getEbaySettings, saveEbayDraft } from "./store";
+import { syncEbayDraft } from "@/services/weclapp/channelBacksync";
 
 type Offer = {
   offerId?: string;
@@ -24,6 +25,13 @@ type Offer = {
 };
 type OffersResponse = { offers?: Offer[] };
 type ImageResponse = { imageId?: string; imageUrl?: string };
+
+async function saveManagedDraft(draft: EbayListingDraft) {
+  await saveEbayDraft(draft);
+  const synced = { ...draft, weclappSync: await syncEbayDraft(draft) };
+  await saveEbayDraft(synced);
+  return synced;
+}
 
 function changedSourceFields(
   saved: EbayListingDraft["source"],
@@ -491,8 +499,7 @@ async function publishUnlocked(id: string) {
       updatedAt: new Date().toISOString(),
       lastError: undefined,
     };
-    await saveEbayDraft(complete);
-    return complete;
+    return saveManagedDraft(complete);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unbekannter eBay-Fehler";
     if (!offerId && !inventoryCreated) {
@@ -559,8 +566,7 @@ async function publishUnlocked(id: string) {
             updatedAt: new Date().toISOString(),
             lastError: undefined,
           };
-          await saveEbayDraft(complete);
-          return complete;
+          return saveManagedDraft(complete);
         }
       } catch {}
     }
@@ -607,8 +613,7 @@ async function reconcileUnlocked(id: string) {
       updatedAt: new Date().toISOString(),
       lastError: undefined,
     };
-    await saveEbayDraft(complete);
-    return complete;
+    return saveManagedDraft(complete);
   }
   const unresolved: EbayListingDraft = {
     ...draft,
@@ -655,8 +660,7 @@ async function resumeUnlocked(id: string) {
       updatedAt: new Date().toISOString(),
       lastError: undefined,
     };
-    await saveEbayDraft(complete);
-    return complete;
+    return saveManagedDraft(complete);
   }
   try {
     const published = await ebayRequest<{ listingId?: string }>(
@@ -675,8 +679,7 @@ async function resumeUnlocked(id: string) {
       updatedAt: new Date().toISOString(),
       lastError: undefined,
     };
-    await saveEbayDraft(complete);
-    return complete;
+    return saveManagedDraft(complete);
   } catch (error) {
     await saveEbayDraft({
       ...draft,
@@ -758,8 +761,7 @@ async function syncManagedUnlocked(id: string) {
     draft,
     await managedOfferForDraft(draft)
   );
-  await saveEbayDraft(synced);
-  return synced;
+  return saveManagedDraft(synced);
 }
 
 async function pauseUnlocked(id: string) {
@@ -808,8 +810,7 @@ async function pauseUnlocked(id: string) {
       updatedAt: now,
       lastError: undefined,
     };
-    await saveEbayDraft(paused);
-    return paused;
+    return saveManagedDraft(paused);
   } catch (error) {
     const message = error instanceof Error ? error.message : "eBay-Fehler";
     let readBack: Offer | undefined;
@@ -821,8 +822,7 @@ async function pauseUnlocked(id: string) {
         ...managedStateFromOffer(draft, readBack),
         pausedAt: draft.pausedAt || new Date().toISOString(),
       };
-      await saveEbayDraft(paused);
-      return paused;
+      return saveManagedDraft(paused);
     }
     if (readBack && offerStatus(readBack) === "PUBLISHED") {
       await saveEbayDraft(managedStateFromOffer(draft, readBack, { lastError: message }));
@@ -856,8 +856,7 @@ async function reactivateUnlocked(id: string) {
   const offer = await managedOfferForDraft(draft);
   if (offerStatus(offer) === "PUBLISHED" && offer.listing?.listingId) {
     const alreadyPublished = managedStateFromOffer(draft, offer);
-    await saveEbayDraft(alreadyPublished);
-    return alreadyPublished;
+    return saveManagedDraft(alreadyPublished);
   }
   if (offerStatus(offer) !== "UNPUBLISHED") {
     throw new Error(
@@ -888,8 +887,7 @@ async function reactivateUnlocked(id: string) {
       updatedAt: now,
       lastError: undefined,
     };
-    await saveEbayDraft(published);
-    return published;
+    return saveManagedDraft(published);
   } catch (error) {
     const message = error instanceof Error ? error.message : "eBay-Fehler";
     let readBack: Offer | undefined;
@@ -905,8 +903,7 @@ async function reactivateUnlocked(id: string) {
         ...managedStateFromOffer(draft, readBack),
         reactivatedAt: new Date().toISOString(),
       };
-      await saveEbayDraft(published);
-      return published;
+      return saveManagedDraft(published);
     }
     if (readBack && offerStatus(readBack) === "UNPUBLISHED") {
       await saveEbayDraft(managedStateFromOffer(draft, readBack, { lastError: message }));

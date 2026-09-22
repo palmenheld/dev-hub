@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { renderEbayDescription } from "@/services/ebay/description";
 import { emptyJsonPost } from "@/lib/http";
+import BacksyncStatus from "@/components/weclapp/BacksyncStatus";
 import type {
   EbayAspect,
   EbayCategorySuggestion,
@@ -2304,6 +2305,7 @@ export default function EbayModule({
                     Pflanzeninhalt aus {form.contentReuse.sourceChannel === "shopware" ? "Shopware" : form.contentReuse.sourceChannel === "kleinanzeigen" ? "Kleinanzeigen" : "eBay"} übernommen · SKU {form.contentReuse.sourceArticleNumber} · keine neue Recherche
                   </p>
                 )}
+                <BacksyncStatus value={active.weclappSync} />
               </div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold">
                 {status(active)}

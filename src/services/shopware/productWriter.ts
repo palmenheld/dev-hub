@@ -17,6 +17,7 @@ import { findShopwareProductByNumber } from "./products";
 import { getProductCandidate } from "./publishingCandidates";
 import { withMutationLock } from "./mutationLock";
 import { getShopwareDraftImage } from "./images";
+import { syncShopwareDraft } from "@/services/weclapp/channelBacksync";
 
 type EntityResponse<T> = { data?: T };
 type TaxRecord = { id?: string; taxRate?: number };
@@ -43,6 +44,13 @@ const CUSTOM_FIELDS = [
   ["palmenheld_weclapp_article_number", "Weclapp Artikelnummer", "text"],
   ["palmenheld_researched_at", "Recherche vom", "text"],
 ] as const;
+
+async function savePublishedDraft(draft: ShopwareProductDraft) {
+  await saveDraft(draft);
+  const synced = { ...draft, weclappSync: await syncShopwareDraft(draft) };
+  await saveDraft(synced);
+  return synced;
+}
 
 function shopwareId() {
   return randomUUID().replaceAll("-", "");
@@ -496,8 +504,7 @@ async function publishDraftUnlocked(draftId: string) {
         pendingMediaIds: undefined,
         lastError: undefined,
       };
-      await saveDraft(published);
-      return published;
+      return savePublishedDraft(published);
     }
 
     await cleanupMedia(uploadedMedia.map((media) => media.mediaId));
@@ -522,8 +529,7 @@ async function publishDraftUnlocked(draftId: string) {
     pendingMediaIds: undefined,
     lastError: undefined,
   };
-  await saveDraft(published);
-  return published;
+  return savePublishedDraft(published);
 }
 
 async function reconcileDraftUnlocked(draftId: string) {
@@ -553,8 +559,7 @@ async function reconcileDraftUnlocked(draftId: string) {
       pendingMediaIds: undefined,
       lastError: undefined,
     };
-    await saveDraft(published);
-    return published;
+    return savePublishedDraft(published);
   }
 
   await cleanupMedia(draft.pendingMediaIds ?? []);

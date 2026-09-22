@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import BacksyncStatus from "@/components/weclapp/BacksyncStatus";
 import type {
   KleinanzeigenConnection,
   KleinanzeigenListing,
@@ -243,6 +244,7 @@ export default function KleinanzeigenModule({
           <div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setEditingId(null); setForm(null); }} className="rounded-xl border px-4 py-2.5 font-semibold">Zur Liste</button><button type="button" disabled={busy || !form.articleId} onClick={refreshFromWeclapp} className="rounded-xl border border-blue-300 px-4 py-2.5 font-semibold text-blue-800 disabled:opacity-40">Weclapp neu laden</button></div>
         </div>
         {feedback && <div className={`mt-4 rounded-xl border p-3 text-sm font-semibold ${feedback.kind === "error" ? "border-red-200 bg-red-50 text-red-800" : "border-green-200 bg-green-50 text-green-800"}`}>{feedback.message}</div>}
+        <BacksyncStatus value={form.weclappSync} />
         <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm">
           <div className="grid gap-4 lg:grid-cols-2">
             <label className="lg:col-span-2"><span className="text-sm font-bold">Titel</span><input value={form.title} maxLength={65} onChange={(event) => setForm({ ...form, title: event.target.value })} className="mt-1 w-full rounded-xl border px-4 py-3"/><span className="mt-1 block text-right text-xs text-slate-500">{form.title.length}/65</span></label>

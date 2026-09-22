@@ -47,6 +47,14 @@ import {
   listEbayDrafts,
   saveEbayDraft,
 } from "./store";
+import { syncEbayDraft } from "@/services/weclapp/channelBacksync";
+
+async function saveEbayDraftWithWeclappSync(draft: EbayListingDraft) {
+  await saveEbayDraft(draft);
+  const synced = { ...draft, weclappSync: await syncEbayDraft(draft) };
+  await saveEbayDraft(synced);
+  return synced;
+}
 
 function validateDescriptionHtml(value: string) {
   if (/<\s*(script|iframe|form|object|embed|style)\b|\son\w+\s*=|javascript:/i.test(value)) {
@@ -704,8 +712,7 @@ async function createUnlocked(
     ...base,
     validation: validateEbayDraft(base),
   };
-  await saveEbayDraft(draft);
-  return draft;
+  return saveEbayDraftWithWeclappSync(draft);
 }
 
 type EditableInput = {
@@ -793,8 +800,7 @@ async function updateUnlocked(id: string, input: EditableInput) {
     conditions.map((condition) => condition.value)
   );
   next.status = next.validation.valid ? "ready" : "blocked";
-  await saveEbayDraft(next);
-  return next;
+  return saveEbayDraftWithWeclappSync(next);
 }
 
 async function approveUnlocked(id: string) {

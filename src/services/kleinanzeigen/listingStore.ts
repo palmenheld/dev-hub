@@ -9,6 +9,7 @@ import type {
   KleinanzeigenTemplate,
   UpdateKleinanzeigenListingInput,
 } from "@/types/kleinanzeigen";
+import { syncKleinanzeigenListing } from "@/services/weclapp/channelBacksync";
 
 const dataDirectory =
   process.env.KLEINANZEIGEN_DATA_DIR ??
@@ -115,6 +116,7 @@ function normalizeListing(raw: Partial<KleinanzeigenListing>): KleinanzeigenList
     lastError: raw.lastError,
     createdAt: raw.createdAt || now,
     updatedAt: raw.updatedAt || now,
+    weclappSync: raw.weclappSync,
   };
   listing.validation = validateKleinanzeigenListing(listing);
   if (!listing.validation.valid && listing.status === "ready") listing.status = "draft";
@@ -152,8 +154,12 @@ export async function createKleinanzeigenListing(input: CreateKleinanzeigenListi
     createdAt: now,
     updatedAt: now,
   });
-  await writeListings([listing, ...listings]);
-  return listing;
+  const next = [listing, ...listings];
+  await writeListings(next);
+  const synced = { ...listing, weclappSync: await syncKleinanzeigenListing(listing) };
+  next[0] = synced;
+  await writeListings(next);
+  return synced;
 }
 
 export async function updateKleinanzeigenListing(id: string, input: UpdateKleinanzeigenListingInput) {
@@ -180,7 +186,10 @@ export async function updateKleinanzeigenListing(id: string, input: UpdateKleina
   }
   listings[index] = updated;
   await writeListings(listings);
-  return updated;
+  const synced = { ...updated, weclappSync: await syncKleinanzeigenListing(updated) };
+  listings[index] = synced;
+  await writeListings(listings);
+  return synced;
 }
 
 export async function replaceKleinanzeigenListingSource(
@@ -204,7 +213,10 @@ export async function replaceKleinanzeigenListingSource(
   });
   listings[index] = updated;
   await writeListings(listings);
-  return updated;
+  const synced = { ...updated, weclappSync: await syncKleinanzeigenListing(updated) };
+  listings[index] = synced;
+  await writeListings(listings);
+  return synced;
 }
 
 export async function updateKleinanzeigenListingStatus(
@@ -223,7 +235,10 @@ export async function updateKleinanzeigenListingStatus(
   });
   listings[index] = updated;
   await writeListings(listings);
-  return updated;
+  const synced = { ...updated, weclappSync: await syncKleinanzeigenListing(updated) };
+  listings[index] = synced;
+  await writeListings(listings);
+  return synced;
 }
 
 export async function listKleinanzeigenTemplates() {

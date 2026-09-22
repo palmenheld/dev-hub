@@ -5,6 +5,7 @@ import type {
   ProductResearch,
   ResearchSource,
 } from "@/types/shopwarePublishing";
+import type { WeclappBacksyncResult } from "@/types/weclappBacksync";
 
 export type EbayEnvironment = "sandbox" | "production";
 export type EbayConnectionState =
@@ -287,4 +288,5 @@ export type EbayListingDraft = {
   reactivatedAt?: string;
   pendingManagementAction?: "pause" | "reactivate";
   lastError?: string;
+  weclappSync?: WeclappBacksyncResult;
 };
