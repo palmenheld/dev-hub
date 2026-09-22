@@ -7,6 +7,7 @@ export function getKleinanzeigenConnection(): KleinanzeigenConnection {
     return {
       mode: "mock",
       state: "test",
+      canExport: true,
       canPublish: true,
       label: "Testmodus aktiv",
       description:
@@ -14,23 +15,29 @@ export function getKleinanzeigenConnection(): KleinanzeigenConnection {
     };
   }
 
-  if (mode === "partner-api") {
+  if (mode === "direct") {
     return {
-      mode: "partner-api",
-      state: "adapter_required",
+      mode: "direct",
+      state: "credentials_required",
+      canExport: true,
       canPublish: false,
-      label: "Partnerzugang noch nicht eingebunden",
+      label: "AnzeigenChef-Direktzugang noch nicht hinterlegt",
       description:
-        "Die Zugangsdaten und die freigegebene technische Spezifikation von Kleinanzeigen werden für den produktiven Adapter benötigt.",
+        "Die Entwürfe und AnzeigenChef-Exporte funktionieren bereits. Eine direkte Übertragung wird erst nach Vorlage eines freigegebenen AnzeigenChef-Zugangs aktiviert.",
+      account: process.env.ANZEIGENCHEF_ACCOUNT?.trim(),
+      folder: process.env.ANZEIGENCHEF_FOLDER?.trim(),
     };
   }
 
   return {
-    mode: "disabled",
-    state: "on_hold",
+    mode: "anzeigenchef-csv",
+    state: "export_ready",
+    canExport: true,
     canPublish: false,
-    label: "On Hold – Anfrage läuft",
+    label: "AnzeigenChef-Übergabe vorbereitet",
     description:
-      "Die Weiterentwicklung ist pausiert, bis eine Rückmeldung zur freigegebenen Kleinanzeigen-Anbindung vorliegt.",
+      "Freigegebene Anzeigen können als AnzeigenChef-kompatible CSV exportiert und dort importiert werden. Zugangsdaten für eine spätere Direktanbindung können nachgereicht werden.",
+    account: process.env.ANZEIGENCHEF_ACCOUNT?.trim(),
+    folder: process.env.ANZEIGENCHEF_FOLDER?.trim(),
   };
 }

@@ -101,10 +101,16 @@ function kleinanzeigenState(listing?: KleinanzeigenListing) {
   if (listing?.status === "error") {
     return { label: "Fehler", tone: "bg-red-100 text-red-800" };
   }
+  if (listing?.status === "exported") {
+    return { label: "An AnzeigenChef übergeben", tone: "bg-violet-100 text-violet-800" };
+  }
+  if (listing?.status === "ready" || listing?.approvedAt) {
+    return { label: "Freigegeben", tone: "bg-blue-100 text-blue-800" };
+  }
   if (listing) {
     return { label: "Entwurf vorhanden", tone: "bg-violet-100 text-violet-800" };
   }
-  return { label: "Nicht angelegt · On Hold", tone: "bg-slate-100 text-slate-700" };
+  return { label: "Nicht angelegt", tone: "bg-slate-100 text-slate-700" };
 }
 
 export default function OfferManagement() {

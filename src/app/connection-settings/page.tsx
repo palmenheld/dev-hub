@@ -18,11 +18,11 @@ function first(value: string | string[] | undefined) {
 function KleinanzeigenSettings() {
   const connection = getKleinanzeigenConnection();
   return (
-    <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+    <section className="rounded-2xl border border-violet-200 bg-violet-50 p-5">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+            <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
             <h2 className="text-lg font-bold">{connection.label}</h2>
             <span className="rounded-full border bg-white px-2.5 py-1 text-xs font-semibold">
               Modus: {connection.mode}
@@ -33,18 +33,24 @@ function KleinanzeigenSettings() {
           </p>
         </div>
         <a
-          href="https://themen.kleinanzeigen.de/pro-infopoint/"
+          href="https://anzeigenchef-online.de/externe-schnittstelle-shopware-6/"
           target="_blank"
           rel="noreferrer"
           className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-center text-sm font-semibold text-[var(--ph-green-dark)]"
         >
-          PRO-Zugang prüfen ↗
+          AnzeigenChef-Dokumentation ↗
         </a>
       </div>
-      <div className="mt-4 rounded-xl border border-amber-200 bg-white/70 p-4 text-sm text-amber-950">
-        Die produktive Verbindung bleibt gesperrt, bis Kleinanzeigen einen
-        freigegebenen Partnerzugang und die technische Dokumentation bereitstellt.
-        Lokale Entwürfe können in der Angebotsverwaltung weiterhin vorbereitet werden.
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-violet-200 bg-white/80 p-4 text-sm text-slate-700">
+          <h3 className="font-bold text-[var(--ph-green-dark)]">Jetzt nutzbar: CSV-Übergabe</h3>
+          <p className="mt-2">Entwürfe werden vollständig geprüft und als AnzeigenChef-Importdatei ausgegeben. Der stabile Wert in <code>free01</code> kann beim ersten Import als Aktualisierungsschlüssel gewählt werden.</p>
+        </div>
+        <div className="rounded-xl border border-violet-200 bg-white/80 p-4 text-sm text-slate-700">
+          <h3 className="font-bold text-[var(--ph-green-dark)]">Später: Zugangsdaten</h3>
+          <p className="mt-2">Für die direkte Übertragung fehlen noch freigegebene AnzeigenChef-Zugangsdaten bzw. eine technische API-Spezifikation. Benutzername oder Passwort werden nicht im Browser gespeichert.</p>
+          <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs"><dt className="font-semibold">Konto</dt><dd>{connection.account || "wird später hinterlegt"}</dd><dt className="font-semibold">Ordner</dt><dd>{connection.folder || "Palmenheld Hub"}</dd></dl>
+        </div>
       </div>
     </section>
   );

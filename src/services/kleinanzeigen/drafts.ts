@@ -19,7 +19,6 @@ export async function createAutomaticKleinanzeigenDraft(articleId: string) {
   const missing = [
     !candidate.articleNumber ? "Artikelnummer" : "",
     !candidate.germanName ? "deutscher Name" : "",
-    !candidate.latinName ? "lateinischer Name" : "",
     !candidate.price || candidate.price <= 0 ? "Verkaufspreis" : "",
   ].filter(Boolean);
   if (missing.length) {
@@ -41,12 +40,18 @@ export async function createAutomaticKleinanzeigenDraft(articleId: string) {
   const content = renderKleinanzeigenContent(candidate, research);
   return createKleinanzeigenListing({
     articleId: candidate.articleId,
+    source: candidate,
     sku: candidate.articleNumber,
     title: content.title,
     description: content.description,
     price: candidate.price!,
-    category: "Haus & Garten > Pflanzen",
+    category: "Pflanzen, Bäume & Sträucher",
     location: process.env.KLEINANZEIGEN_LOCATION?.trim() || "Nordkirchen",
+    postalCode: process.env.KLEINANZEIGEN_POSTAL_CODE?.trim() || "",
+    stock: candidate.stock,
+    selectedImageUrls: candidate.imageUrls.slice(0, 20),
+    commercial: true,
+    shippingProvided: true,
     research,
     sources,
     contentReuse: reuseSource
