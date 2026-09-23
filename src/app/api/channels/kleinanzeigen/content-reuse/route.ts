@@ -4,7 +4,7 @@ import {
   findReusableChannelContent,
   renderKleinanzeigenContent,
 } from "@/services/channelContent";
-import { getProductCandidate } from "@/services/shopware/publishingCandidates";
+import { getKleinanzeigenCandidate } from "@/services/kleinanzeigen/candidates";
 
 export async function GET(request: Request) {
   try {
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
         { status: 400 }
       );
     }
-    const candidate = await getProductCandidate(articleId);
+    const candidate = await getKleinanzeigenCandidate(articleId);
     const source = await findReusableChannelContent(candidate, "kleinanzeigen");
     if (!source) {
       return NextResponse.json({ success: true, reused: false });

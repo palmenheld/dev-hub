@@ -4,7 +4,7 @@ import {
   getKleinanzeigenListings,
 } from "@/services/kleinanzeigen";
 import type { CreateKleinanzeigenListingInput } from "@/types/kleinanzeigen";
-import { getProductCandidate } from "@/services/shopware/publishingCandidates";
+import { getKleinanzeigenCandidate } from "@/services/kleinanzeigen/candidates";
 import { channelContentReuse, findReusableChannelContent } from "@/services/channelContent";
 import { assertSameOrigin } from "@/services/requestSecurity";
 
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     if (!input.sku?.trim() || !input.title?.trim() || !input.description?.trim()) {
       return NextResponse.json({ success: false, error: "Artikelnummer, Titel und Beschreibung sind erforderlich." }, { status: 400 });
     }
-    const candidate = input.articleId ? await getProductCandidate(input.articleId).catch(() => null) : null;
+    const candidate = input.articleId ? await getKleinanzeigenCandidate(input.articleId) : null;
     const reuseSource = candidate ? await findReusableChannelContent(candidate, "kleinanzeigen") : undefined;
     const listing = await createKleinanzeigenListing({
       articleId: input.articleId,
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       sku: input.sku,
       title: input.title,
       description: input.description,
-      price: Number(input.price) || 0,
+      price: (candidate?.price ?? Number(input.price)) || 0,
       priceType: input.priceType,
       adType: input.adType,
       category: input.category || "Pflanzen, Bäume & Sträucher",

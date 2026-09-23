@@ -3,12 +3,12 @@ import {
   findReusableChannelContent,
   renderKleinanzeigenContent,
 } from "@/services/channelContent";
-import { getProductCandidate } from "@/services/shopware/publishingCandidates";
 import { researchProduct } from "@/services/shopware/research";
 import { createKleinanzeigenListing, getKleinanzeigenListings } from "./listingStore";
+import { getKleinanzeigenCandidate } from "./candidates";
 
 export async function createAutomaticKleinanzeigenDraft(articleId: string) {
-  const candidate = await getProductCandidate(articleId);
+  const candidate = await getKleinanzeigenCandidate(articleId);
   const existing = (await getKleinanzeigenListings()).find(
     (listing) =>
       listing.articleId === candidate.articleId ||

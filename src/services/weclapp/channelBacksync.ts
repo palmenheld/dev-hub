@@ -287,18 +287,21 @@ function effective(price: UnknownRow, now = Date.now()) {
 
 async function resolveSalesChannel(channel: BacksyncChannel) {
   const active = await activeSalesChannels();
+  if (channel === "kleinanzeigen") {
+    return active.find((item) => item.key.toUpperCase() === "GROSS1") ?? null;
+  }
   const configured = process.env[CHANNEL_ENV[channel]]?.trim().toUpperCase();
   if (configured) return active.find((item) => item.key.toUpperCase() === configured) ?? null;
   return active.find((item) => CHANNEL_MATCH[channel].test(item.name)) ?? null;
 }
 
-function updatePrice(articlePrices: UnknownRow[], channel: ActiveSalesChannel | null, price: number | undefined, warnings: string[]) {
+function updatePrice(articlePrices: UnknownRow[], channel: ActiveSalesChannel | null, price: number | undefined, warnings: string[], allowGross1 = false) {
   if (!Number.isFinite(price) || (price ?? 0) <= 0) return false;
   if (!channel) {
     warnings.push("Für diesen Kanal fehlt in Weclapp ein aktiver eigener Brutto-Vertriebskanal; der Standardpreis wurde nicht verändert.");
     return false;
   }
-  if (!channel.key.toUpperCase().startsWith("GROSS") || channel.key.toUpperCase() === "GROSS1") {
+  if (!channel.key.toUpperCase().startsWith("GROSS") || (channel.key.toUpperCase() === "GROSS1" && !allowGross1)) {
     warnings.push(`Der Vertriebskanal ${channel.name} (${channel.key}) ist kein separater Brutto-Kanal; der Preis wurde aus Sicherheitsgründen nicht geschrieben.`);
     return false;
   }
@@ -375,7 +378,7 @@ async function syncUnlocked(payload: SyncPayload): Promise<WeclappBacksyncResult
 
   const salesChannel = await resolveSalesChannel(payload.channel);
   const articlePrices = Array.isArray(article.articlePrices) ? structuredClone(article.articlePrices as UnknownRow[]) : [];
-  const priceSynced = updatePrice(articlePrices, salesChannel, payload.price, warnings);
+  const priceSynced = updatePrice(articlePrices, salesChannel, payload.price, warnings, payload.channel === "kleinanzeigen");
   if (!fieldCount && !priceSynced) {
     return { state: warnings.length ? "partial" : "synced", syncedAt, salesChannel: salesChannel?.key, salesChannelName: salesChannel?.name, priceSynced, fieldCount, warnings, message: warnings[0] || "Keine geänderten Weclapp-Werte vorhanden." };
   }

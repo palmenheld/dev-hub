@@ -122,7 +122,8 @@ export default async function ConnectionSettingsPage({
               <p className="mt-1 max-w-4xl text-sm text-slate-600">
                 Beim Erstellen und Bearbeiten werden Kanaltexte, Pflanzendaten,
                 externe IDs und der jeweilige Verkaufspreis am Weclapp-Artikel
-                aktualisiert. Standardpreise werden dabei nicht überschrieben.
+                aktualisiert. eBay und Shopware verwenden eigene Preiskanäle;
+                Kleinanzeigen verwendet ausdrücklich den Standard-Bruttopreis GROSS1.
               </p>
             </div>
             <span className={`rounded-full px-3 py-1 text-xs font-bold ${backsync.enabled ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>
@@ -150,8 +151,8 @@ export default async function ConnectionSettingsPage({
                 </p>
                 {!item.ready && item.channel === "kleinanzeigen" && (
                   <p className="mt-2 text-xs text-amber-950">
-                    In Weclapp einen zusätzlichen Brutto-Vertriebskanal
-                    „Kleinanzeigen“ aktivieren. Danach wird er automatisch erkannt.
+                    Der aktive Weclapp-Standardkanal GROSS1 fehlt. Ohne ihn kann
+                    kein Kleinanzeigen-Preis gelesen oder gespeichert werden.
                   </p>
                 )}
               </div>
