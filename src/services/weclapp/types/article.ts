@@ -3,15 +3,19 @@ export type WeclappArticle = {
 
   articleNumber?: string;
   name?: string;
+
+  shortDescription1?: string;
   description?: string;
+
+  active?: boolean;
 
   ean?: string;
   manufacturerPartNumber?: string;
 
+  articlePrices?: unknown[];
+
   createdDate?: number;
   lastModifiedDate?: number;
-  
-  active?: boolean;
 
   [key: string]: unknown;
 };

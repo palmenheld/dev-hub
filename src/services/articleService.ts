@@ -1,27 +1,70 @@
 import {
   getArticle,
   getArticles,
-  getGross1PriceMap,
 } from "@/services/weclapp";
 
 import { mapWeclappArticle } from "@/services/weclapp/mappers/articleMapper";
+import { buildGross1PriceMap } from "@/services/weclapp/prices";
+import { buildStockMap } from "@/services/weclapp/stock";
+import { WeclappArticle } from "@/services/weclapp/types/article";
+
+async function loadRawArticles(): Promise<
+  WeclappArticle[]
+> {
+  const all:
+    WeclappArticle[] = [];
+
+  for (
+    let page = 1;
+    page <= 100;
+    page += 1
+  ) {
+    const response =
+      await getArticles({
+        page,
+        pageSize: 100,
+      });
+
+    const batch =
+      response.result ?? [];
+
+    all.push(...batch);
+
+    if (batch.length < 100) {
+      break;
+    }
+  }
+
+  return all;
+}
 
 export async function getAllArticles() {
-  const [articleResponse, gross1Prices] =
-    await Promise.all([
-      getArticles({
-        page: 1,
-        pageSize: 500,
-      }),
+  const articles =
+    await loadRawArticles();
 
-      getGross1PriceMap(),
-    ]);
+  const [
+    grossPrices,
+    stockMap,
+  ] = await Promise.all([
+    buildGross1PriceMap(
+      articles
+    ),
 
-  return (articleResponse.result ?? []).map(
+    buildStockMap(),
+  ]);
+
+  return articles.map(
     (article) =>
       mapWeclappArticle(
         article,
-        gross1Prices.get(article.id) ?? 0
+
+        grossPrices.get(
+          String(article.id)
+        ),
+
+        stockMap.get(
+          String(article.id)
+        )
       )
   );
 }
@@ -29,14 +72,25 @@ export async function getAllArticles() {
 export async function getArticleById(
   id: string
 ) {
-  const [article, gross1Prices] =
-    await Promise.all([
-      getArticle(id),
-      getGross1PriceMap(),
-    ]);
+  /*
+   * Für den Moment benutzen wir
+   * dieselbe zentrale Datenbasis.
+   *
+   * Das ist etwas aufwendiger,
+   * stellt aber sicher, dass Detail-
+   * und Listenansicht exakt dieselben
+   * Preise und Bestände verwenden.
+   *
+   * Danach bauen wir Cache.
+   */
 
-  return mapWeclappArticle(
-    article,
-    gross1Prices.get(article.id) ?? 0
+  const articles =
+    await getAllArticles();
+
+  return (
+    articles.find(
+      (article) =>
+        article.id === id
+    ) ?? null
   );
 }
