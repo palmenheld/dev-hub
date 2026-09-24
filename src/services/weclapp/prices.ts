@@ -29,6 +29,7 @@ export async function getArticlePrices(
       query: {
         page,
         pageSize,
+        properties: "id,articleId,salesChannel,price,currencyId,startDate,endDate",
       },
     }
   );

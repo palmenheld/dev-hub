@@ -2,14 +2,19 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Article, ChannelStatus } from "@/types/article";
+import { Article, type ChannelStatus } from "@/types/article";
+import {
+  ARTICLE_PAGE_SIZES,
+  type ArticleActivityFilter as ActivityFilter,
+  type ArticleChannelFilter as ChannelFilter,
+  type ArticleListPage,
+  type ArticlePageSize,
+  type ArticleSortDirection as SortDirection,
+  type ArticleSortKey as SortKey,
+} from "@/types/articleList";
 import { SyncPlan } from "@/types/shopwareSync";
 import ShopwareSyncPlanReview from "@/components/shopware/ShopwareSyncPlanReview";
 
-type SortKey = "name" | "sku" | "stock" | "price" | "status";
-type SortDirection = "asc" | "desc";
-type ActivityFilter = "active" | "inactive" | "all";
-type ChannelFilter = "all" | ChannelStatus;
 type BulkMode = "set" | "increase" | "decrease";
 
 type BulkFeedback = {
@@ -92,11 +97,14 @@ function FilterSelect({
 }
 
 export default function ArticleListClient({
-  articles,
+  initialPage,
 }: {
-  articles: Article[];
+  initialPage: ArticleListPage;
 }) {
-  const [articleRows, setArticleRows] = useState(articles);
+  const [articleRows, setArticleRows] = useState(initialPage.articles);
+  const [listPage, setListPage] = useState(initialPage);
+  const [page, setPage] = useState(initialPage.page);
+  const [pageSize, setPageSize] = useState<ArticlePageSize>(initialPage.pageSize);
   const [query, setQuery] = useState("");
   const [activityFilter, setActivityFilter] =
     useState<ActivityFilter>("active");
@@ -114,9 +122,7 @@ export default function ArticleListClient({
   const [sortDirection, setSortDirection] =
     useState<SortDirection>("asc");
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set()
-  );
+  const [selectedRows, setSelectedRows] = useState<Record<string, Article>>({});
   const [bulkEditorOpen, setBulkEditorOpen] = useState(false);
   const [bulkMode, setBulkMode] = useState<BulkMode>("set");
   const [bulkValue, setBulkValue] = useState("");
@@ -124,105 +130,81 @@ export default function ArticleListClient({
   const [bulkPlan, setBulkPlan] = useState<SyncPlan | null>(null);
   const [bulkFeedback, setBulkFeedback] =
     useState<BulkFeedback | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const firstRequest = useRef(true);
+  const criteriaKey = JSON.stringify([
+    activityFilter, ebayFilter, kleinanzeigenFilter, maxPrice, maxStock,
+    minPrice, minStock, nameFilter, pageSize, query, shopFilter, skuFilter,
+    sortDirection, sortKey,
+  ]);
+  const previousCriteria = useRef(criteriaKey);
 
-  const filteredArticles = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const minimumPrice = parseNumber(minPrice);
-    const maximumPrice = parseNumber(maxPrice);
-    const normalizedName = nameFilter.trim().toLowerCase();
-    const normalizedSku = skuFilter.trim().toLowerCase();
-    const minimumStock = parseNumber(minStock);
-    const maximumStock = parseNumber(maxStock);
+  useEffect(() => {
+    if (firstRequest.current) {
+      firstRequest.current = false;
+      return;
+    }
 
-    const result = articleRows.filter((article) => {
-      if (activityFilter === "active" && !article.active) {
-        return false;
+    const controller = new AbortController();
+    const requestedPage = previousCriteria.current === criteriaKey ? page : 1;
+    previousCriteria.current = criteriaKey;
+    const timeout = window.setTimeout(async () => {
+      setLoading(true);
+      setLoadError(null);
+      const params = new URLSearchParams({
+        page: String(requestedPage),
+        pageSize: String(pageSize),
+        query,
+        activity: activityFilter,
+        name: nameFilter,
+        sku: skuFilter,
+        minStock: minStock ? String(parseNumber(minStock) ?? "") : "",
+        maxStock: maxStock ? String(parseNumber(maxStock) ?? "") : "",
+        minPrice: minPrice ? String(parseNumber(minPrice) ?? "") : "",
+        maxPrice: maxPrice ? String(parseNumber(maxPrice) ?? "") : "",
+        shop: shopFilter,
+        ebay: ebayFilter,
+        kleinanzeigen: kleinanzeigenFilter,
+        sortKey,
+        sortDirection,
+      });
+
+      try {
+        const response = await fetch(`/api/articles/list?${params.toString()}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const payload = (await response.json()) as {
+          page?: ArticleListPage;
+          error?: string;
+        };
+        if (!response.ok || !payload.page) {
+          throw new Error(payload.error || "Die Artikelliste konnte nicht geladen werden.");
+        }
+        setArticleRows(payload.page.articles);
+        setListPage(payload.page);
+        if (payload.page.page !== page) setPage(payload.page.page);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Die Artikelliste konnte nicht geladen werden."
+        );
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
       }
+    }, 350);
 
-      if (activityFilter === "inactive" && article.active) {
-        return false;
-      }
-
-      if (minimumStock !== null && article.stock < minimumStock) {
-        return false;
-      }
-
-      if (maximumStock !== null && article.stock > maximumStock) {
-        return false;
-      }
-
-      if (
-        normalizedName &&
-        !`${article.name} ${article.subtitle}`.toLowerCase().includes(normalizedName)
-      ) {
-        return false;
-      }
-
-      if (normalizedSku && !article.sku.toLowerCase().includes(normalizedSku)) {
-        return false;
-      }
-
-      if (shopFilter !== "all" && article.channels.shop !== shopFilter) {
-        return false;
-      }
-
-      if (ebayFilter !== "all" && article.channels.ebay !== ebayFilter) {
-        return false;
-      }
-
-      if (
-        kleinanzeigenFilter !== "all" &&
-        article.channels.kleinanzeigen !== kleinanzeigenFilter
-      ) {
-        return false;
-      }
-
-      if (minimumPrice !== null && article.basePrice < minimumPrice) {
-        return false;
-      }
-
-      if (maximumPrice !== null && article.basePrice > maximumPrice) {
-        return false;
-      }
-
-      if (!normalizedQuery) {
-        return true;
-      }
-
-      return (
-        article.name.toLowerCase().includes(normalizedQuery) ||
-        article.sku.toLowerCase().includes(normalizedQuery) ||
-        article.subtitle.toLowerCase().includes(normalizedQuery)
-      );
-    });
-
-    return [...result].sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortKey) {
-        case "sku":
-          comparison = a.sku.localeCompare(b.sku, "de");
-          break;
-        case "stock":
-          comparison = a.stock - b.stock;
-          break;
-        case "price":
-          comparison = a.basePrice - b.basePrice;
-          break;
-        case "status":
-          comparison = Number(b.active) - Number(a.active);
-          break;
-        case "name":
-        default:
-          comparison = a.name.localeCompare(b.name, "de");
-      }
-
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
   }, [
+    criteriaKey,
     activityFilter,
-    articleRows,
     ebayFilter,
     kleinanzeigenFilter,
     maxPrice,
@@ -230,6 +212,8 @@ export default function ArticleListClient({
     minPrice,
     minStock,
     nameFilter,
+    page,
+    pageSize,
     query,
     shopFilter,
     skuFilter,
@@ -237,9 +221,15 @@ export default function ArticleListClient({
     sortKey,
   ]);
 
+  const filteredArticles = articleRows;
+  const selectedIds = useMemo(
+    () => new Set(Object.keys(selectedRows)),
+    [selectedRows]
+  );
+
   const selectedArticles = useMemo(
-    () => articleRows.filter((article) => selectedIds.has(article.id)),
-    [articleRows, selectedIds]
+    () => Object.values(selectedRows),
+    [selectedRows]
   );
 
   const visibleSelectedCount = filteredArticles.filter((article) =>
@@ -271,7 +261,7 @@ export default function ArticleListClient({
     kleinanzeigenFilter !== "all",
   ].filter(Boolean).length;
 
-  const inactiveCount = articleRows.filter((article) => !article.active).length;
+  const inactiveCount = listPage.inactiveTotal;
 
   function resetFilters() {
     setQuery("");
@@ -287,40 +277,38 @@ export default function ArticleListClient({
     setKleinanzeigenFilter("all");
     setSortKey("name");
     setSortDirection("asc");
+    setPage(1);
   }
 
   function toggleArticle(id: string) {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-
-      return next;
+    const article = articleRows.find((item) => item.id === id);
+    if (!article) return;
+    setSelectedRows((current) => {
+      const nextRows = { ...current };
+      if (nextRows[id]) delete nextRows[id];
+      else nextRows[id] = article;
+      return nextRows;
     });
     setBulkFeedback(null);
   }
 
   function toggleAllVisible() {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-
+    setSelectedRows((current) => {
+      const nextRows = { ...current };
       if (allVisibleSelected) {
-        filteredArticles.forEach((article) => next.delete(article.id));
+        filteredArticles.forEach((article) => delete nextRows[article.id]);
       } else {
-        filteredArticles.forEach((article) => next.add(article.id));
+        filteredArticles.forEach((article) => {
+          nextRows[article.id] = article;
+        });
       }
-
-      return next;
+      return nextRows;
     });
     setBulkFeedback(null);
   }
 
   function clearSelection() {
-    setSelectedIds(new Set());
+    setSelectedRows({});
     setBulkEditorOpen(false);
     setBulkFeedback(null);
   }
@@ -415,12 +403,20 @@ export default function ArticleListClient({
         return price === undefined ? article : { ...article, basePrice: price };
       })
     );
+    setSelectedRows((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([id, article]) => {
+          const price = appliedPrices.get(id);
+          return [id, price === undefined ? article : { ...article, basePrice: price }];
+        })
+      )
+    );
   }
 
   return (
     <div>
       <section className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center">
+        <div className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] lg:items-center">
           <label className="relative block">
             <span className="sr-only">Artikel suchen</span>
             <input
@@ -465,6 +461,20 @@ export default function ArticleListClient({
               </span>
             )}
           </button>
+
+          <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-700">
+            <span>Pro Seite</span>
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value) as ArticlePageSize)}
+              className="bg-transparent font-bold outline-none"
+              aria-label="Artikel pro Seite"
+            >
+              {ARTICLE_PAGE_SIZES.map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+          </label>
 
           <div className="flex gap-2">
             <select
@@ -639,10 +649,21 @@ export default function ArticleListClient({
         )}
       </section>
 
+      {loadError && (
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
+          {loadError}
+        </div>
+      )}
+      {loading && (
+        <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-800">
+          Passende Artikel werden aus dem gesamten Weclapp-Bestand geladen …
+        </div>
+      )}
+
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         <div className="rounded-xl border bg-white px-4 py-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Geladen
+            Auf dieser Seite
           </div>
           <div className="mt-1 text-2xl font-bold text-slate-800">
             {articleRows.length}
@@ -650,10 +671,10 @@ export default function ArticleListClient({
         </div>
         <div className="rounded-xl border bg-white px-4 py-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Angezeigt
+            Treffer gesamt
           </div>
           <div className="mt-1 text-2xl font-bold text-[var(--ph-green-dark)]">
-            {filteredArticles.length}
+            {listPage.total}
           </div>
         </div>
         <div className="rounded-xl border bg-white px-4 py-3">
@@ -707,7 +728,7 @@ export default function ArticleListClient({
                   onClick={toggleAllVisible}
                   className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-50"
                 >
-                  Alle {filteredArticles.length} Treffer auswählen
+                  Alle {filteredArticles.length} auf dieser Seite auswählen
                 </button>
               )}
               <button
@@ -951,13 +972,53 @@ export default function ArticleListClient({
         </div>
       </section>
 
-      <div className="mt-4 flex flex-col justify-between gap-2 text-sm text-slate-500 sm:flex-row">
+      <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
         <span>
-          {filteredArticles.length} von {articleRows.length} Artikeln angezeigt
+          {listPage.total === 0
+            ? "Keine Treffer"
+            : `${(listPage.page - 1) * listPage.pageSize + 1}–${Math.min(
+                listPage.page * listPage.pageSize,
+                listPage.total
+              )} von ${listPage.total} Treffern`}
+          {" "}· {listPage.totalArticles} Weclapp-Artikel werden durchsucht
         </span>
-        <span>
-          Auswahl und Filter beziehen sich auf die aktuell geladenen Weclapp-Daten.
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={loading || listPage.page <= 1}
+            onClick={() => setPage(1)}
+            className="rounded-lg border px-3 py-2 font-semibold disabled:opacity-40"
+          >
+            Erste
+          </button>
+          <button
+            type="button"
+            disabled={loading || listPage.page <= 1}
+            onClick={() => setPage((current) => Math.max(1, current - 1))}
+            className="rounded-lg border px-3 py-2 font-semibold disabled:opacity-40"
+          >
+            Zurück
+          </button>
+          <span className="px-2 font-semibold">
+            Seite {listPage.page} von {listPage.totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={loading || listPage.page >= listPage.totalPages}
+            onClick={() => setPage((current) => Math.min(listPage.totalPages, current + 1))}
+            className="rounded-lg border px-3 py-2 font-semibold disabled:opacity-40"
+          >
+            Weiter
+          </button>
+          <button
+            type="button"
+            disabled={loading || listPage.page >= listPage.totalPages}
+            onClick={() => setPage(listPage.totalPages)}
+            className="rounded-lg border px-3 py-2 font-semibold disabled:opacity-40"
+          >
+            Letzte
+          </button>
+        </div>
       </div>
     </div>
   );

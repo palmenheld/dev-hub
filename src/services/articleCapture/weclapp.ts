@@ -1,4 +1,5 @@
 import type { ArticleCapture, ArticleCapturePhoto } from "@/types/articleCapture";
+import { invalidateArticleListCache } from "@/services/articleService";
 import { getArticleCategoryMap } from "@/services/weclapp/categories";
 import { getArticle } from "@/services/weclapp/articles";
 import {
@@ -227,6 +228,7 @@ export async function syncArticleCaptureToWeclapp(id: string) {
       weclappSyncError: null,
     });
     if (!updated) throw new Error("Die Weclapp-Verknüpfung konnte im Hub nicht gespeichert werden.");
+    invalidateArticleListCache();
     for (const photo of updated.photos.filter((item) => !item.weclappSyncedAt)) {
       updated = await syncArticleCapturePhotoToWeclapp(updated, photo) ?? updated;
     }

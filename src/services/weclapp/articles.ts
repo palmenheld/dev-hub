@@ -8,6 +8,7 @@ export type GetArticlesOptions = {
   page?: number;
   pageSize?: number;
   active?: boolean;
+  properties?: string;
 };
 
 export async function getArticles(
@@ -18,6 +19,7 @@ export async function getArticles(
       page: options.page ?? 1,
       pageSize: options.pageSize ?? 20,
       "active-eq": options.active,
+      properties: options.properties,
     },
   });
 }
