@@ -74,6 +74,18 @@ function normalizeInput(input: Partial<ArticleCaptureInput>): ArticleCaptureInpu
   };
 }
 
+function normalizeCapture(capture: ArticleCapture): ArticleCapture {
+  return {
+    ...capture,
+    articleNumber: normalizeText(capture.articleNumber, 100),
+    photos: Array.isArray(capture.photos) ? capture.photos : [],
+    primaryPhotoId: capture.primaryPhotoId ?? null,
+    weclappArticleId: normalizeText(capture.weclappArticleId, 100) || null,
+    weclappSyncedAt: normalizeText(capture.weclappSyncedAt, 100) || null,
+    weclappSyncError: normalizeText(capture.weclappSyncError, 2_000) || null,
+  };
+}
+
 function matchesSignature(contentType: keyof typeof IMAGE_TYPES, bytes: Uint8Array) {
   if (contentType === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
   if (contentType === "image/png") return bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
@@ -102,7 +114,7 @@ async function writeCaptures(captures: ArticleCapture[]) {
 export async function listArticleCaptures() {
   try {
     const captures = JSON.parse(await readFile(capturesFile, "utf8")) as ArticleCapture[];
-    return captures.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return captures.map(normalizeCapture).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   } catch (error) {
     if (isMissingFile(error)) return [];
     throw error;
@@ -120,9 +132,13 @@ export async function createArticleCapture(input: Partial<ArticleCaptureInput>) 
     const now = new Date().toISOString();
     const capture: ArticleCapture = {
       ...normalizeInput(input),
+      articleNumber: "",
       id: randomUUID(),
       photos: [],
       primaryPhotoId: null,
+      weclappArticleId: null,
+      weclappSyncedAt: null,
+      weclappSyncError: null,
       createdAt: now,
       updatedAt: now,
     };
@@ -154,10 +170,74 @@ export async function updateArticleCapture(
     const updated: ArticleCapture = {
       ...current,
       ...normalized,
+      articleNumber: current.articleNumber,
       photos,
       primaryPhotoId,
       updatedAt: new Date().toISOString(),
     };
+    captures[index] = updated;
+    await writeCaptures(captures);
+    return updated;
+  });
+}
+
+export async function setArticleCaptureWeclappState(
+  id: string,
+  state: {
+    weclappArticleId?: string | null;
+    articleNumber?: string;
+    weclappSyncedAt?: string | null;
+    weclappSyncError?: string | null;
+  }
+) {
+  assertUuid(id);
+  return withMutation(async () => {
+    const captures = await listArticleCaptures();
+    const index = captures.findIndex((capture) => capture.id === id);
+    if (index < 0) return null;
+    const current = captures[index];
+    const updated: ArticleCapture = {
+      ...current,
+      weclappArticleId: state.weclappArticleId === undefined
+        ? current.weclappArticleId
+        : normalizeText(state.weclappArticleId, 100) || null,
+      articleNumber: state.articleNumber === undefined
+        ? current.articleNumber
+        : normalizeText(state.articleNumber, 100),
+      weclappSyncedAt: state.weclappSyncedAt === undefined
+        ? current.weclappSyncedAt
+        : normalizeText(state.weclappSyncedAt, 100) || null,
+      weclappSyncError: state.weclappSyncError === undefined
+        ? current.weclappSyncError
+        : normalizeText(state.weclappSyncError, 2_000) || null,
+      updatedAt: new Date().toISOString(),
+    };
+    captures[index] = updated;
+    await writeCaptures(captures);
+    return updated;
+  });
+}
+
+export async function setArticleCapturePhotoWeclappState(
+  articleId: string,
+  photoId: string,
+  state: { weclappSyncedAt?: string; weclappSyncError?: string | null }
+) {
+  assertUuid(articleId);
+  assertUuid(photoId);
+  return withMutation(async () => {
+    const captures = await listArticleCaptures();
+    const index = captures.findIndex((capture) => capture.id === articleId);
+    if (index < 0) return null;
+    const capture = captures[index];
+    const photos = capture.photos.map((photo) => photo.id === photoId ? {
+      ...photo,
+      weclappSyncedAt: state.weclappSyncedAt ?? photo.weclappSyncedAt,
+      weclappSyncError: state.weclappSyncError === undefined
+        ? photo.weclappSyncError
+        : state.weclappSyncError || undefined,
+    } : photo);
+    const updated = { ...capture, photos, updatedAt: new Date().toISOString() };
     captures[index] = updated;
     await writeCaptures(captures);
     return updated;

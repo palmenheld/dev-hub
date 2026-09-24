@@ -165,26 +165,38 @@ export default function ArticleCaptureForm({ initialArticle }: { initialArticle?
       const response = await fetch(endpoint, {
         method: article ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, status }),
+        body: JSON.stringify({ ...form, status, articleNumber: undefined }),
       });
       const payload = (await response.json()) as { article?: ArticleCapture; error?: string };
-      if (!response.ok || !payload.article) throw new Error(payload.error || "Der Artikel konnte nicht gespeichert werden.");
+      if (!payload.article) throw new Error(payload.error || "Der Artikel konnte nicht gespeichert werden.");
       let saved = payload.article;
+      const syncErrors: string[] = [];
+      if (!response.ok && payload.error) syncErrors.push(payload.error);
       for (let index = 0; index < pendingPhotos.length; index += 1) {
-        setUploadProgress(`Foto ${index + 1} von ${pendingPhotos.length} wird gespeichert …`);
+        setUploadProgress(`Foto ${index + 1} von ${pendingPhotos.length} wird in Hub und Weclapp gespeichert …`);
         const data = new FormData();
         data.append("photo", pendingPhotos[index].file);
         const upload = await fetch(`/api/article-captures/${saved.id}/photos`, { method: "POST", body: data });
         const uploadPayload = (await upload.json()) as { article?: ArticleCapture; error?: string };
-        if (!upload.ok || !uploadPayload.article) throw new Error(uploadPayload.error || "Ein Foto konnte nicht gespeichert werden.");
+        if (!uploadPayload.article) throw new Error(uploadPayload.error || "Ein Foto konnte nicht gespeichert werden.");
         saved = uploadPayload.article;
+        if (!upload.ok && uploadPayload.error) syncErrors.push(uploadPayload.error);
       }
       pendingPhotos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
       setPendingPhotos([]);
       setArticle(saved);
-      setForm((current) => ({ ...current, status: saved.status }));
+      setForm((current) => ({
+        ...current,
+        status: saved.status,
+        articleNumber: saved.articleNumber,
+      }));
       setUploadProgress("");
-      setMessage({ kind: "success", text: "Artikel und Fotos wurden dauerhaft im Hub gespeichert." });
+      setMessage(syncErrors.length
+        ? { kind: "error", text: syncErrors.join(" ") }
+        : {
+            kind: "success",
+            text: `Artikel wurde in Weclapp als ${saved.articleNumber} gespeichert${saved.photos.length ? "; die Fotos wurden ebenfalls übertragen." : "."}`,
+          });
       if (!article) router.replace(`/articles/new/${saved.id}`);
       router.refresh();
     } catch (error) {
@@ -238,6 +250,13 @@ export default function ArticleCaptureForm({ initialArticle }: { initialArticle?
         </div>
       )}
 
+      {article && (
+        <div className={`rounded-xl border px-4 py-3 text-sm ${article.weclappArticleId ? "border-green-200 bg-green-50 text-green-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+          <strong>{article.weclappArticleId ? `Mit Weclapp verknüpft: ${article.articleNumber}` : "Noch nicht mit Weclapp verknüpft"}</strong>
+          {article.weclappSyncError && <span className="mt-1 block">{article.weclappSyncError}</span>}
+        </div>
+      )}
+
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -252,8 +271,8 @@ export default function ArticleCaptureForm({ initialArticle }: { initialArticle?
           <Field label="Artikelname *" hint="So, wie du den Artikel intern wiederfinden möchtest.">
             <input value={form.name} onChange={(event) => setValue("name", event.target.value)} className={inputClass} placeholder="z. B. Olea europaea C45 160–180 cm" autoFocus />
           </Field>
-          <Field label="Artikelnummer / SKU">
-            <input value={form.articleNumber} onChange={(event) => setValue("articleNumber", event.target.value)} className={inputClass} placeholder="Kann später vergeben werden" autoCapitalize="characters" />
+          <Field label="Artikelnummer / SKU" hint="Wird beim ersten Speichern automatisch von Weclapp vergeben.">
+            <input value={article?.articleNumber || form.articleNumber} readOnly disabled className={`${inputClass} cursor-not-allowed bg-slate-100 text-slate-600`} placeholder="Wird von Weclapp vergeben" />
           </Field>
           <Field label="Deutscher Name">
             <input value={form.germanName} onChange={(event) => setValue("germanName", event.target.value)} className={inputClass} placeholder="z. B. Olivenbaum" />
@@ -338,8 +357,8 @@ export default function ArticleCaptureForm({ initialArticle }: { initialArticle?
           <Link href="/articles" className="rounded-xl px-3 py-3 text-sm font-bold text-slate-600">Abbrechen</Link>
           <div className="flex items-center gap-2">
             {uploadProgress && <span className="hidden text-xs font-semibold text-slate-500 sm:block">{uploadProgress}</span>}
-            <button type="button" disabled={saving} onClick={() => void save("draft")} className="rounded-xl border border-[var(--ph-green-dark)] px-4 py-3 text-sm font-bold text-[var(--ph-green-dark)] disabled:opacity-50">{saving ? "Speichert …" : "Entwurf speichern"}</button>
-            <button type="button" disabled={saving} onClick={() => void save("ready")} className="rounded-xl bg-[var(--ph-green-dark)] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">Als vollständig speichern</button>
+            <button type="button" disabled={saving} onClick={() => void save("draft")} className="rounded-xl border border-[var(--ph-green-dark)] px-4 py-3 text-sm font-bold text-[var(--ph-green-dark)] disabled:opacity-50">{saving ? "Überträgt …" : "Entwurf speichern & übertragen"}</button>
+            <button type="button" disabled={saving} onClick={() => void save("ready")} className="rounded-xl bg-[var(--ph-green-dark)] px-4 py-3 text-sm font-bold text-white disabled:opacity-50">Vollständig speichern & übertragen</button>
           </div>
         </div>
       </div>

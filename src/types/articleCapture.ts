@@ -8,6 +8,8 @@ export type ArticleCapturePhoto = {
   size: number;
   createdAt: string;
   url: string;
+  weclappSyncedAt?: string;
+  weclappSyncError?: string;
 };
 
 export type ArticleCapture = {
@@ -28,11 +30,21 @@ export type ArticleCapture = {
   notes: string;
   photos: ArticleCapturePhoto[];
   primaryPhotoId: string | null;
+  weclappArticleId: string | null;
+  weclappSyncedAt: string | null;
+  weclappSyncError: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type ArticleCaptureInput = Omit<
   ArticleCapture,
-  "id" | "photos" | "primaryPhotoId" | "createdAt" | "updatedAt"
+  | "id"
+  | "photos"
+  | "primaryPhotoId"
+  | "weclappArticleId"
+  | "weclappSyncedAt"
+  | "weclappSyncError"
+  | "createdAt"
+  | "updatedAt"
 >;
