@@ -1,13 +1,15 @@
 import AppShell from "@/components/layout/AppShell";
+import { requireCurrentUser } from "@/services/auth/currentUser";
 
-export default function Home() {
+export default async function Home() {
+  const user = await requireCurrentUser();
   return (
     <AppShell>
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-3xl text-[var(--ph-green-dark)]">
-              Guten Morgen, Thorsten!
+              Willkommen, {user.displayName}!
             </h2>
 
             <p className="mt-1 text-slate-500">

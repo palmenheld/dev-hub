@@ -28,5 +28,5 @@ export const navigation: NavItem[] = [
   { label: "Lager-App", href: "/warehouse" },
   { label: "Bestellungen", href: "/orders" },
   { label: "Auswertungen", href: "/reports" },
-  { label: "Einstellungen", href: "/settings" },
+  { label: "Nutzerverwaltung", href: "/settings/accounts" },
 ];

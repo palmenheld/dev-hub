@@ -1,4 +1,10 @@
-export default function AppHeader() {
+import type { PublicHubUser } from "@/types/auth";
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "PH";
+}
+
+export default function AppHeader({ user }: { user: PublicHubUser }) {
   return (
     <header className="hidden h-20 items-center justify-between border-b lg:flex bg-white px-5 sm:px-8">
       <div>
@@ -10,15 +16,15 @@ export default function AppHeader() {
       <div className="flex items-center gap-4">
         <div className="hidden text-right sm:block">
           <div className="font-semibold text-slate-900">
-            Thorsten
+            {user.displayName}
           </div>
           <div className="text-sm text-slate-500">
-            Administrator
+            {user.role === "admin" ? "Administrator" : "Bearbeiter"}
           </div>
         </div>
 
         <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--ph-green-light)] font-bold text-[var(--ph-green-dark)]">
-          TW
+          {initials(user.displayName)}
         </div>
       </div>
     </header>

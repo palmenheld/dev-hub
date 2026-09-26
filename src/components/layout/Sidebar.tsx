@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { navigation, type NavLink } from "@/config/navigation";
+import LogoutButton from "@/components/auth/LogoutButton";
+import type { PublicHubUser } from "@/types/auth";
 
 function linkIsActive(pathname: string, href: string) {
   return href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
@@ -72,18 +74,23 @@ function NavigationLinks({
   });
 }
 
-function SidebarFooter() {
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("") || "PH";
+}
+
+function SidebarFooter({ user }: { user: PublicHubUser }) {
   return (
     <div className="border-t border-white/10 p-4">
       <div className="rounded-xl bg-white/5 px-4 py-3">
-        <div className="font-semibold">Palmenheld GmbH</div>
-        <div className="text-sm text-white/70">Nordkirchen</div>
+        <div className="font-semibold">{user.displayName}</div>
+        <div className="text-sm text-white/70">{user.role === "admin" ? "Administrator" : "Bearbeiter"}</div>
+        <LogoutButton />
       </div>
     </div>
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ user }: { user: PublicHubUser }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -117,7 +124,7 @@ export default function Sidebar() {
         <nav className="flex-1 space-y-1 p-4" aria-label="Hauptnavigation">
           <NavigationLinks pathname={pathname} />
         </nav>
-        <SidebarFooter />
+        <SidebarFooter user={user} />
       </aside>
 
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b bg-white px-4 shadow-sm lg:hidden">
@@ -140,7 +147,7 @@ export default function Sidebar() {
           className="h-11 w-auto"
         />
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--ph-green-light)] text-sm font-bold text-[var(--ph-green-dark)]">
-          TW
+          {initials(user.displayName)}
         </div>
       </header>
 
@@ -179,7 +186,7 @@ export default function Sidebar() {
             <nav className="flex-1 space-y-1 overflow-y-auto p-4" aria-label="Mobile Hauptnavigation">
               <NavigationLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
             </nav>
-            <SidebarFooter />
+            <SidebarFooter user={user} />
           </aside>
         </div>
       )}
