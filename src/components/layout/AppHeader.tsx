@@ -1,6 +1,6 @@
 export default function AppHeader() {
   return (
-    <header className="flex h-20 items-center justify-between border-b bg-white px-5 sm:px-8">
+    <header className="hidden h-20 items-center justify-between border-b lg:flex bg-white px-5 sm:px-8">
       <div>
         <h1 className="text-2xl text-[var(--ph-green-dark)]">
           Dashboard
