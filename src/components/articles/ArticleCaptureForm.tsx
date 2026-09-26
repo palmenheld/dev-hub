@@ -173,6 +173,8 @@ export default function ArticleCaptureForm({ initialArticle }: { initialArticle?
     try {
       const data = new FormData();
       data.append("photo", photo.sourceFile);
+      if (form.heightMinCm) data.append("heightMinCm", String(form.heightMinCm));
+      if (form.heightMaxCm) data.append("heightMaxCm", String(form.heightMaxCm));
       const response = await fetch("/api/article-captures/cutout", { method: "POST", body: data });
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -188,7 +190,7 @@ export default function ArticleCaptureForm({ initialArticle }: { initialArticle?
         URL.revokeObjectURL(item.previewUrl);
         return { ...item, file, previewUrl, cutout: true };
       }));
-      setMessage({ kind: "success", text: "Die Pflanze wurde freigestellt. Bitte kontrolliere Blätter, Stamm und Topfrand vor dem Speichern." });
+      setMessage({ kind: "success", text: "Die Pflanze wurde freigestellt, auf Weiß gesetzt und mit Palmenheld-Logo versehen. Eine hinterlegte Artikelhöhe wird als ungefähre Skala eingeblendet. Bitte das Ergebnis vor dem Speichern kontrollieren." });
     } catch (error) {
       setMessage({ kind: "error", text: error instanceof Error ? error.message : "Das Foto konnte nicht freigestellt werden." });
     } finally {
@@ -380,7 +382,7 @@ export default function ArticleCaptureForm({ initialArticle }: { initialArticle?
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><h2 className="text-xl text-[var(--ph-green-dark)]">Fotos</h2><p className="mt-1 text-sm text-slate-500">Bis zu 24 Fotos. Das markierte Hauptfoto wird zuerst verwendet. Neue Fotos kannst du vor dem Speichern per KI freistellen.</p></div>
+          <div><h2 className="text-xl text-[var(--ph-green-dark)]">Fotos</h2><p className="mt-1 text-sm text-slate-500">Bis zu 24 Fotos. Beim Freistellen entstehen Produktbilder auf weißem Hintergrund mit kleinem Palmenheld-Logo. Eine im Artikel hinterlegte Höhe wird als ungefähre Skala ergänzt.</p></div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">{(article?.photos.length ?? 0) + pendingPhotos.length}/24</span>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
@@ -401,10 +403,10 @@ export default function ArticleCaptureForm({ initialArticle }: { initialArticle?
               </div>
             ))}
             {pendingPhotos.map((photo) => (
-              <div key={photo.id} className={`overflow-hidden rounded-2xl border-2 ${photo.cutout ? "border-violet-400 bg-[linear-gradient(45deg,#e2e8f0_25%,transparent_25%),linear-gradient(-45deg,#e2e8f0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e2e8f0_75%),linear-gradient(-45deg,transparent_75%,#e2e8f0_75%)] bg-[length:20px_20px]" : "border-dashed border-green-400 bg-slate-100"}`}>
+              <div key={photo.id} className={`overflow-hidden rounded-2xl border-2 ${photo.cutout ? "border-violet-400 bg-white" : "border-dashed border-green-400 bg-slate-100"}`}>
                 <div className="aspect-square bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url(${JSON.stringify(photo.previewUrl).slice(1, -1)})` }} />
                 <div className="space-y-2 bg-white p-2">
-                  <span className={`block text-xs font-bold ${photo.cutout ? "text-violet-700" : "text-green-800"}`}>{photo.cutout ? "KI-freigestellt · noch speichern" : "Noch speichern"}</span>
+                  <span className={`block text-xs font-bold ${photo.cutout ? "text-violet-700" : "text-green-800"}`}>{photo.cutout ? "Freigestellt · Weiß · Logo · noch speichern" : "Noch speichern"}</span>
                   {photo.cutout ? (
                     <button type="button" onClick={() => restorePending(photo)} disabled={Boolean(processingPhotoId)} className="block text-xs font-bold text-slate-700 disabled:opacity-40">Original verwenden</button>
                   ) : (
