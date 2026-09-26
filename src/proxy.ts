@@ -10,7 +10,7 @@ const PUBLIC_PATHS = new Set([
 ]);
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.has(pathname);
+  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/receipt/") || pathname.startsWith("/api/pos/receipts/");
 }
 
 export async function proxy(request: NextRequest) {

@@ -25,6 +25,7 @@ export const navigation: NavItem[] = [
       { label: "Kleinanzeigen", href: "/channels/kleinanzeigen/templates" },
     ],
   },
+  { label: "Kasse", href: "/pos" },
   { label: "Lager-App", href: "/warehouse" },
   { label: "Bestellungen", href: "/orders" },
   { label: "Auswertungen", href: "/reports" },

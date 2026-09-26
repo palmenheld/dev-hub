@@ -49,6 +49,22 @@ export function assertEbayPublishKey(request: Request) {
   assertEbaySecurityKey(request);
 }
 
+export function assertPosCheckoutPin(request: Request) {
+  if (process.env.POS_LIVE_WRITES_ENABLED?.trim().toLowerCase() !== "true") {
+    throw new Error("Live-Kassiervorgänge sind serverseitig noch gesperrt (POS_LIVE_WRITES_ENABLED).");
+  }
+  const expected = process.env.POS_CHECKOUT_PIN?.trim() || "";
+  const provided = request.headers.get("x-palmenheld-pos-pin")?.trim() || "";
+  if (expected.length !== 6 || /\D/.test(expected)) {
+    throw new Error("Die sechsstellige Kassen-PIN ist serverseitig noch nicht eingerichtet.");
+  }
+  const expectedHash = createHash("sha256").update(expected).digest();
+  const providedHash = createHash("sha256").update(provided).digest();
+  if (provided.length !== 6 || /\D/.test(provided) || !timingSafeEqual(expectedHash, providedHash)) {
+    throw new Error("Die Kassen-PIN ist nicht korrekt.");
+  }
+}
+
 export function assertBlogCronKey(request: Request) {
   const expected = process.env.BLOG_CRON_SECRET?.trim();
   if (!expected) {
