@@ -2,6 +2,7 @@ import Link from "next/link";
 import AppShell from "@/components/layout/AppShell";
 import EbayModule from "@/components/ebay/EbayModule";
 import ShopwareModule from "@/components/shopware/ShopwareModule";
+import ChannelTextBackfill from "@/components/weclapp/ChannelTextBackfill";
 import { getEbayConnection } from "@/services/ebay/config";
 import { getEbaySettings } from "@/services/ebay/store";
 import { getKleinanzeigenConnection } from "@/services/kleinanzeigen";
@@ -120,9 +121,7 @@ export default async function ConnectionSettingsPage({
                 Rückschreiben nach Weclapp
               </h2>
               <p className="mt-1 max-w-4xl text-sm text-slate-600">
-                Beim Erstellen und Bearbeiten werden Kanaltexte, Pflanzendaten,
-                externe IDs und der jeweilige Verkaufspreis am Weclapp-Artikel
-                aktualisiert. eBay und Shopware verwenden eigene Preiskanäle;
+                Beim Erstellen und Bearbeiten werden Titel und Beschreibung je Kanal in getrennte Weclapp-Zusatzfelder geschrieben. Zusätzlich werden Textstand, Inhaltsversion, Pflanzendaten, externe IDs und der jeweilige Verkaufspreis aktualisiert. eBay und Shopware verwenden eigene Preiskanäle;
                 Kleinanzeigen verwendet ausdrücklich den Standard-Bruttopreis GROSS1.
               </p>
             </div>
@@ -158,6 +157,7 @@ export default async function ConnectionSettingsPage({
               </div>
             ))}
           </div>
+          <ChannelTextBackfill enabled={backsync.enabled} />
         </section>
 
         <nav className="mt-6 flex flex-wrap gap-2 rounded-2xl border bg-white p-2 shadow-sm">

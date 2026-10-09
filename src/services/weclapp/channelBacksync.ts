@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { EbayListingDraft } from "@/types/ebay";
 import type { KleinanzeigenListing } from "@/types/kleinanzeigen";
 import type {
@@ -44,6 +45,7 @@ type SyncPayload = {
   category?: string;
   externalId?: string;
   attributes?: Record<string, string | string[]>;
+  syncPrice?: boolean;
 };
 
 const CHANNEL_LABELS: Record<BacksyncChannel, string> = {
@@ -73,10 +75,13 @@ const COMMON_SPECS: DefinitionSpec[] = [
 const CHANNEL_SPECS: Record<BacksyncChannel, DefinitionSpec[]> = {
   shopware: [
     { key: "ph_hub_shopware_title", label: "Palmenheld Hub – Shopware Titel", type: "STRING" },
+    { key: "ph_hub_shopware_description", label: "Palmenheld Hub – Shopware Beschreibung", type: "LARGE_TEXT" },
     { key: "ph_hub_shopware_meta_title", label: "Palmenheld Hub – Shopware Meta-Titel", type: "STRING" },
     { key: "ph_hub_shopware_meta_description", label: "Palmenheld Hub – Shopware Meta-Beschreibung", type: "LARGE_TEXT" },
     { key: "ph_hub_shopware_status", label: "Palmenheld Hub – Shopware Status", type: "STRING" },
     { key: "ph_hub_shopware_product_id", label: "Palmenheld Hub – Shopware Produkt-ID", type: "STRING" },
+    { key: "ph_hub_shopware_text_updated_at", label: "Palmenheld Hub – Shopware Text aktualisiert", type: "STRING" },
+    { key: "ph_hub_shopware_text_version", label: "Palmenheld Hub – Shopware Text-Version", type: "STRING" },
   ],
   ebay: [
     { key: "ph_hub_ebay_title", label: "Palmenheld Hub – eBay Titel", type: "STRING" },
@@ -84,6 +89,8 @@ const CHANNEL_SPECS: Record<BacksyncChannel, DefinitionSpec[]> = {
     { key: "ph_hub_ebay_category", label: "Palmenheld Hub – eBay Kategorie", type: "STRING" },
     { key: "ph_hub_ebay_status", label: "Palmenheld Hub – eBay Status", type: "STRING" },
     { key: "ph_hub_ebay_listing_id", label: "Palmenheld Hub – eBay Listing-ID", type: "STRING" },
+    { key: "ph_hub_ebay_text_updated_at", label: "Palmenheld Hub – eBay Text aktualisiert", type: "STRING" },
+    { key: "ph_hub_ebay_text_version", label: "Palmenheld Hub – eBay Text-Version", type: "STRING" },
   ],
   kleinanzeigen: [
     { key: "ph_hub_kleinanzeigen_title", label: "Palmenheld Hub – Kleinanzeigen Titel", type: "STRING" },
@@ -91,6 +98,8 @@ const CHANNEL_SPECS: Record<BacksyncChannel, DefinitionSpec[]> = {
     { key: "ph_hub_kleinanzeigen_category", label: "Palmenheld Hub – Kleinanzeigen Kategorie", type: "STRING" },
     { key: "ph_hub_kleinanzeigen_status", label: "Palmenheld Hub – Kleinanzeigen Status", type: "STRING" },
     { key: "ph_hub_kleinanzeigen_external_id", label: "Palmenheld Hub – Kleinanzeigen Anzeigen-ID", type: "STRING" },
+    { key: "ph_hub_kleinanzeigen_text_updated_at", label: "Palmenheld Hub – Kleinanzeigen Text aktualisiert", type: "STRING" },
+    { key: "ph_hub_kleinanzeigen_text_version", label: "Palmenheld Hub – Kleinanzeigen Text-Version", type: "STRING" },
   ],
 };
 
@@ -109,6 +118,13 @@ function normalized(value: string) {
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : value === undefined || value === null ? "" : String(value).trim();
+}
+
+function contentVersion(title: string, description: string) {
+  return createHash("sha256")
+    .update(title.trim() + "\n" + description.trim())
+    .digest("hex")
+    .slice(0, 16);
 }
 
 function resultRow(value: UnknownRow) {
@@ -356,33 +372,45 @@ async function syncUnlocked(payload: SyncPayload): Promise<WeclappBacksyncResult
 
   if (payload.channel === "shopware") {
     setKey("ph_hub_shopware_title", payload.title);
+    setKey("ph_hub_shopware_description", payload.description);
     setLabel("Artikelbeschreibung (Shopware6_shop)", payload.description);
     setKey("ph_hub_shopware_meta_title", payload.metaTitle);
     setKey("ph_hub_shopware_meta_description", payload.metaDescription);
     setKey("ph_hub_shopware_status", payload.status);
     setKey("ph_hub_shopware_product_id", payload.externalId);
+    setKey("ph_hub_shopware_text_updated_at", syncedAt);
+    setKey("ph_hub_shopware_text_version", contentVersion(payload.title, payload.description));
   } else if (payload.channel === "ebay") {
     setKey("ph_hub_ebay_title", payload.title);
     setKey("ph_hub_ebay_description", payload.description);
     setKey("ph_hub_ebay_category", payload.category);
     setKey("ph_hub_ebay_status", payload.status);
     setKey("ph_hub_ebay_listing_id", payload.externalId);
+    setKey("ph_hub_ebay_text_updated_at", syncedAt);
+    setKey("ph_hub_ebay_text_version", contentVersion(payload.title, payload.description));
   } else {
     setKey("ph_hub_kleinanzeigen_title", payload.title);
     setKey("ph_hub_kleinanzeigen_description", payload.description);
     setKey("ph_hub_kleinanzeigen_category", payload.category);
     setKey("ph_hub_kleinanzeigen_status", payload.status);
     setKey("ph_hub_kleinanzeigen_external_id", payload.externalId);
+    setKey("ph_hub_kleinanzeigen_text_updated_at", syncedAt);
+    setKey("ph_hub_kleinanzeigen_text_version", contentVersion(payload.title, payload.description));
   }
   for (const [label, value] of Object.entries(payload.attributes ?? {})) setLabel(label, value);
 
   const salesChannel = await resolveSalesChannel(payload.channel);
   const articlePrices = Array.isArray(article.articlePrices) ? structuredClone(article.articlePrices as UnknownRow[]) : [];
-  const priceSynced = updatePrice(articlePrices, salesChannel, payload.price, warnings, payload.channel === "kleinanzeigen");
+  const priceSynced = payload.syncPrice === false
+    ? false
+    : updatePrice(articlePrices, salesChannel, payload.price, warnings, payload.channel === "kleinanzeigen");
   if (!fieldCount && !priceSynced) {
     return { state: warnings.length ? "partial" : "synced", syncedAt, salesChannel: salesChannel?.key, salesChannelName: salesChannel?.name, priceSynced, fieldCount, warnings, message: warnings[0] || "Keine geänderten Weclapp-Werte vorhanden." };
   }
-  await weclappRequest(`article/id/${encodeURIComponent(payload.articleId)}`, { method: "PUT", body: { customAttributes: attributes, articlePrices } });
+  const updateBody = payload.syncPrice === false
+    ? { customAttributes: attributes }
+    : { customAttributes: attributes, articlePrices };
+  await weclappRequest(`article/id/${encodeURIComponent(payload.articleId)}`, { method: "PUT", body: updateBody });
   const state = warnings.length ? "partial" : "synced";
   return {
     state,
@@ -393,7 +421,9 @@ async function syncUnlocked(payload: SyncPayload): Promise<WeclappBacksyncResult
     fieldCount,
     warnings,
     message: state === "synced"
-      ? `${CHANNEL_LABELS[payload.channel]}-Felder und Preis wurden nach Weclapp zurückgeschrieben.`
+      ? payload.syncPrice === false
+        ? `${CHANNEL_LABELS[payload.channel]}-Texte wurden nach Weclapp zurückgeschrieben; Preise blieben unverändert.`
+        : `${CHANNEL_LABELS[payload.channel]}-Felder und Preis wurden nach Weclapp zurückgeschrieben.`
       : `${CHANNEL_LABELS[payload.channel]}-Felder wurden nach Weclapp geschrieben; ${warnings.join(" ")}`,
   };
 }
@@ -407,7 +437,7 @@ export async function syncChannelPayload(payload: SyncPayload) {
   }
 }
 
-export function syncShopwareDraft(draft: ShopwareProductDraft) {
+export function syncShopwareDraft(draft: ShopwareProductDraft, options: { syncPrice?: boolean } = {}) {
   return syncChannelPayload({
     channel: "shopware",
     articleId: draft.source.articleId,
@@ -421,10 +451,11 @@ export function syncShopwareDraft(draft: ShopwareProductDraft) {
     metaTitle: draft.research.metaTitle,
     metaDescription: draft.research.metaDescription,
     externalId: draft.shopwareProductId || draft.pendingShopwareProductId,
+    syncPrice: options.syncPrice,
   });
 }
 
-export function syncEbayDraft(draft: EbayListingDraft) {
+export function syncEbayDraft(draft: EbayListingDraft, options: { syncPrice?: boolean } = {}) {
   const attributes: Record<string, string | string[]> = { ...draft.aspects };
   if (draft.options?.brand) attributes.Marke = draft.options.brand;
   if (draft.generatedCopy?.itemSpecifics.waterRequirement) attributes.Wasserbedarf = draft.generatedCopy.itemSpecifics.waterRequirement;
@@ -443,10 +474,11 @@ export function syncEbayDraft(draft: EbayListingDraft) {
     category: [draft.categoryId, draft.categoryName].filter(Boolean).join(" · "),
     externalId: draft.listingId || draft.offerId || draft.pendingOfferId,
     attributes,
+    syncPrice: options.syncPrice,
   });
 }
 
-export function syncKleinanzeigenListing(listing: KleinanzeigenListing) {
+export function syncKleinanzeigenListing(listing: KleinanzeigenListing, options: { syncPrice?: boolean } = {}) {
   if (!listing.articleId) {
     return Promise.resolve({ state: "failed", syncedAt: new Date().toISOString(), priceSynced: false, fieldCount: 0, warnings: ["Weclapp-Artikelverknüpfung fehlt."], message: "Weclapp-Rücksync nicht möglich: Artikelverknüpfung fehlt." } satisfies WeclappBacksyncResult);
   }
@@ -463,6 +495,7 @@ export function syncKleinanzeigenListing(listing: KleinanzeigenListing) {
     category: [listing.categoryId, listing.category].filter(Boolean).join(" · "),
     externalId: listing.externalId,
     attributes: listing.attributes,
+    syncPrice: options.syncPrice,
   });
 }
 
