@@ -27,6 +27,7 @@ export const navigation: NavItem[] = [
   },
   { label: "Kasse", href: "/pos" },
   { label: "Lager-App", href: "/warehouse" },
+  { label: "Überwinterung", href: "/overwintering" },
   { label: "Bestellungen", href: "/orders" },
   { label: "Auswertungen", href: "/reports" },
   { label: "Nutzerverwaltung", href: "/settings/accounts" },
