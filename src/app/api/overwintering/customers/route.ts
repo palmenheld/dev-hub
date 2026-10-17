@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { searchWeclappCustomers } from "@/services/overwintering/customers";
+import {
+  createWeclappCustomer,
+  searchWeclappCustomers,
+} from "@/services/overwintering/customers";
+import { assertSameOrigin } from "@/services/requestSecurity";
+import type { WeclappCustomerCreateInput } from "@/types/overwintering";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +19,26 @@ export async function GET(request: Request) {
           error instanceof Error
             ? error.message
             : "Die Weclapp-Kunden konnten nicht geladen werden.",
+      },
+      { status: 400 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    assertSameOrigin(request);
+    const input =
+      (await request.json()) as Partial<WeclappCustomerCreateInput>;
+    const customer = await createWeclappCustomer(input);
+    return NextResponse.json({ customer }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Der Weclapp-Kunde konnte nicht angelegt werden.",
       },
       { status: 400 }
     );

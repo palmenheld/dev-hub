@@ -62,7 +62,6 @@ function normalizeInput(
         } satisfies OverwinteringPlant;
       })
     : [];
-  if (!plants.length) throw new Error("Bitte mindestens eine Pflanze anlegen.");
   if (plants.some((plant) => !plant.name)) {
     throw new Error("Bitte jeder Pflanze einen Namen geben.");
   }
