@@ -90,28 +90,23 @@ er ersetzt nicht das lokale Klonen des Repositorys.
 ## Öffentliche Testadresse
 
 Die aktuelle Server-Testversion ist zusätzlich unter
-`https://dev-hub.palmenheld.de/` erreichbar. Die Domain ist durch eine separate
-Browser-Anmeldung geschützt. Benutzername und Passwort werden nicht im
-Repository gespeichert.
+`https://dev-hub.palmenheld.de/` erreichbar. Der Zugriff wird durch die
+Nutzerkonten und die Anmeldeseite des Palmenheld Hubs geschützt.
 
 Der Aufruf läuft über folgende Stationen:
 
 1. Plesk nimmt die verschlüsselte HTTPS-Verbindung an.
-2. `ops/plesk-dev-proxy.cjs` prüft die Browser-Anmeldung.
-3. Der Proxy leitet die Anfrage intern an `127.0.0.1:3002` weiter.
+2. `ops/plesk-dev-proxy.cjs` leitet die Anfrage intern an `127.0.0.1:3002`
+   weiter.
+3. Der Palmenheld Hub prüft das angemeldete Nutzerkonto.
 4. Dort läuft ein eigener Node.js-22-Vorschaucontainer mit einem stabilen
    Next.js-Produktions-Build aus `/srv/palmenheld-dev-hub`.
 
 Der Entwicklungsserver auf Port `3001` bleibt davon getrennt und ist weiterhin
 nur über den SSH-Tunnel erreichbar.
 
-Die Zugangsdaten liegen ausschließlich auf dem Server in:
-
-```text
-/var/www/vhosts/palmenheld.de/dev-hub.palmenheld.de/.dev-hub-basic-auth.env
-```
-
-Nach einer Passwortänderung wird der Plesk-Einstieg neu geladen:
+Nach einer Änderung am Plesk-Einstiegsproxy wird der Plesk-Einstieg neu
+geladen:
 
 ```bash
 touch /var/www/vhosts/palmenheld.de/dev-hub.palmenheld.de/app/tmp/restart.txt
