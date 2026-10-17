@@ -71,9 +71,11 @@ async function searchField(field: string, query: string) {
   const response = await weclappRequest<ListResponse>("party", {
     query: {
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
       "customer-eq": true,
-      [`${field}-like`]: query,
+      properties:
+        "id,customerNumber,company,firstName,lastName,email,addresses",
+      [`${field}-like`]: `%${query}%`,
     },
   });
   return response.result ?? [];
@@ -84,6 +86,10 @@ export async function searchWeclappCustomers(query: string) {
   if (value.length < 2) {
     throw new Error("Bitte mindestens zwei Zeichen für die Kundensuche eingeben.");
   }
+  const terms = value
+    .split(/\s+/u)
+    .filter(Boolean)
+    .slice(0, 3);
   const fields = [
     "customerNumber",
     "company",
@@ -92,7 +98,9 @@ export async function searchWeclappCustomers(query: string) {
     "email",
   ];
   const searches = await Promise.allSettled(
-    fields.map((field) => searchField(field, value))
+    terms.flatMap((term) =>
+      fields.map((field) => searchField(field, term))
+    )
   );
   const successful = searches.filter(
     (result): result is PromiseFulfilledResult<UnknownRecord[]> =>
@@ -106,14 +114,33 @@ export async function searchWeclappCustomers(query: string) {
       ? failure.reason
       : new Error("Die Weclapp-Kundensuche ist fehlgeschlagen.");
   }
-  const customers = new Map<string, WeclappCustomerSearchResult>();
+  const parties = new Map<string, UnknownRecord>();
   for (const party of successful.flatMap((result) => result.value)) {
-    const customer = customerFromParty(party);
-    if (customer) customers.set(customer.id, customer);
+    const id = text(party.id);
+    if (id) parties.set(id, party);
   }
-  return [...customers.values()]
+  const normalizedTerms = terms.map((term) =>
+    term.toLocaleLowerCase("de")
+  );
+  return [...parties.values()]
+    .filter((party) => {
+      const haystack = [
+        text(party.customerNumber),
+        text(party.company),
+        text(party.firstName),
+        text(party.lastName),
+        text(party.email),
+      ]
+        .join(" ")
+        .toLocaleLowerCase("de");
+      return normalizedTerms.every((term) => haystack.includes(term));
+    })
+    .map(customerFromParty)
+    .filter(
+      (customer): customer is WeclappCustomerSearchResult => Boolean(customer)
+    )
     .sort((a, b) => a.displayName.localeCompare(b.displayName, "de"))
-    .slice(0, 30);
+    .slice(0, 100);
 }
 
 function optionLabel(row: UnknownRecord) {
