@@ -109,6 +109,9 @@ export default function OverwinteringManager({
   const [pendingPhotos, setPendingPhotos] = useState<
     Record<string, PendingPhoto[]>
   >({});
+  const [expandedPlantIds, setExpandedPlantIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [searching, setSearching] = useState(false);
   const [searchSettled, setSearchSettled] = useState(false);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
@@ -191,6 +194,7 @@ export default function OverwinteringManager({
     releasePending();
     setEditor(emptyEditor());
     setPendingPhotos({});
+    setExpandedPlantIds(new Set());
     setCustomers([]);
     setCustomerQuery("");
     setSearchSettled(false);
@@ -206,6 +210,7 @@ export default function OverwinteringManager({
     releasePending();
     setEditor(editorFromRecord(record));
     setPendingPhotos({});
+    setExpandedPlantIds(new Set());
     setCustomers([]);
     setCustomerQuery("");
     setSearchSettled(false);
@@ -219,6 +224,7 @@ export default function OverwinteringManager({
 
   function selectCustomer(customer: WeclappCustomerSearchResult) {
     setEditor({ customer, plants: [], notes: "" });
+    setExpandedPlantIds(new Set());
     setCustomers([]);
     setSearchSettled(false);
     setShowCreateCustomer(false);
@@ -252,10 +258,12 @@ export default function OverwinteringManager({
         })
       );
       replaceRecord(payload.record);
+      const plant = newPlant();
       setEditor({
         ...editorFromRecord(payload.record),
-        plants: [newPlant()],
+        plants: [plant],
       });
+      setExpandedPlantIds(new Set([plant.id]));
       setMessage({
         kind: "success",
         text: `Die Überwinterung für ${payload.record.customer.displayName} ist angelegt. Jetzt können Pflanzen und Fotos erfasst werden.`,
@@ -284,6 +292,25 @@ export default function OverwinteringManager({
     setMessage(null);
   }
 
+  function addPlant() {
+    const plant = newPlant();
+    setEditor((current) => ({
+      ...current,
+      plants: [...current.plants, plant],
+    }));
+    setExpandedPlantIds((current) => new Set(current).add(plant.id));
+    setMessage(null);
+  }
+
+  function togglePlant(id: string) {
+    setExpandedPlantIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   function removePlant(id: string) {
     const storedPhotos =
       currentRecord?.plants.find((plant) => plant.id === id)?.photos.length ?? 0;
@@ -307,6 +334,11 @@ export default function OverwinteringManager({
       ...current,
       plants: current.plants.filter((plant) => plant.id !== id),
     }));
+    setExpandedPlantIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
   }
 
   async function addFiles(plantId: string, files: FileList | null) {
@@ -718,12 +750,7 @@ export default function OverwinteringManager({
                 </div>
                 <button
                   type="button"
-                  onClick={() =>
-                    setEditor((current) => ({
-                      ...current,
-                      plants: [...current.plants, newPlant()],
-                    }))
-                  }
+                  onClick={addPlant}
                   className="rounded-xl border border-[var(--ph-green-dark)] bg-white px-4 py-2.5 font-bold text-[var(--ph-green-dark)]"
                 >
                   + Pflanze hinzufügen
@@ -733,12 +760,7 @@ export default function OverwinteringManager({
               {editor.plants.length === 0 && (
                 <button
                   type="button"
-                  onClick={() =>
-                    setEditor((current) => ({
-                      ...current,
-                      plants: [newPlant()],
-                    }))
-                  }
+                  onClick={addPlant}
                   className="w-full rounded-2xl border-2 border-dashed border-green-300 bg-green-50 p-8 text-center font-bold text-[var(--ph-green-dark)]"
                 >
                   + Erste Pflanze erfassen
@@ -750,152 +772,190 @@ export default function OverwinteringManager({
                   currentRecord?.plants.find((item) => item.id === plant.id)
                     ?.photos ?? [];
                 const pending = pendingPhotos[plant.id] ?? [];
+                const expanded = expandedPlantIds.has(plant.id);
                 return (
                   <article
                     key={plant.id}
                     className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
                   >
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <h3 className="text-lg text-[var(--ph-green-dark)]">
-                        Pflanze {index + 1}
-                      </h3>
+                    <div className="flex items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={() => togglePlant(plant.id)}
+                        aria-expanded={expanded}
+                        aria-controls={`plant-${plant.id}-details`}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus:ring-2 focus:ring-green-200"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-50 text-lg font-bold text-[var(--ph-green-dark)] transition-transform ${expanded ? "rotate-180" : ""}`}
+                        >
+                          ⌄
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-lg font-bold text-[var(--ph-green-dark)]">
+                            {plant.name.trim() || `Pflanze ${index + 1}`}
+                          </span>
+                          <span className="block text-xs text-slate-500">
+                            Pflanze {index + 1} · {stored.length + pending.length}{" "}
+                            {stored.length + pending.length === 1 ? "Foto" : "Fotos"}
+                            {plant.specialFeature.trim() ? " · Besonderheit erfasst" : ""}
+                          </span>
+                        </span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => removePlant(plant.id)}
-                        className="text-sm font-bold text-red-700"
+                        className="shrink-0 text-sm font-bold text-red-700"
                       >
                         Entfernen
                       </button>
                     </div>
-                    <div className="grid gap-4 lg:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1.5 block text-sm font-bold text-slate-800">
-                          Name *
-                        </span>
-                        <input
-                          value={plant.name}
-                          onChange={(event) =>
-                            updatePlant(plant.id, {
-                              name: event.target.value,
-                            })
-                          }
-                          className={inputClass}
-                          placeholder="z. B. Olivenbaum"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1.5 block text-sm font-bold text-slate-800">
-                          Besonderheit
-                        </span>
-                        <textarea
-                          value={plant.specialFeature}
-                          onChange={(event) =>
-                            updatePlant(plant.id, {
-                              specialFeature: event.target.value,
-                            })
-                          }
-                          className={`${inputClass} min-h-24 resize-y`}
-                          placeholder="z. B. linker Ast angebrochen, großer Terrakottakübel, Schädlingskontrolle"
-                        />
-                      </label>
-                    </div>
-
-                    <div className="mt-5 border-t border-slate-200 pt-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <strong className="text-sm text-slate-800">
-                            Fotos
-                          </strong>
-                          <p className="text-xs text-slate-500">
-                            Schäden, Topf und Gesamtansicht am besten getrennt
-                            fotografieren.
-                          </p>
+                    {expanded && (
+                      <div id={`plant-${plant.id}-details`} className="mt-4">
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <label className="block">
+                            <span className="mb-1.5 block text-sm font-bold text-slate-800">
+                              Name *
+                            </span>
+                            <input
+                              value={plant.name}
+                              onChange={(event) =>
+                                updatePlant(plant.id, {
+                                  name: event.target.value,
+                                })
+                              }
+                              className={inputClass}
+                              placeholder="z. B. Olivenbaum"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1.5 block text-sm font-bold text-slate-800">
+                              Besonderheit
+                            </span>
+                            <textarea
+                              value={plant.specialFeature}
+                              onChange={(event) =>
+                                updatePlant(plant.id, {
+                                  specialFeature: event.target.value,
+                                })
+                              }
+                              className={`${inputClass} min-h-24 resize-y`}
+                              placeholder="z. B. linker Ast angebrochen, großer Terrakottakübel, Schädlingskontrolle"
+                            />
+                          </label>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <label className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800">
-                            Bilder auswählen
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              className="hidden"
-                              onChange={(event) => {
-                                void addFiles(plant.id, event.target.files);
-                                event.target.value = "";
-                              }}
-                            />
-                          </label>
-                          <label className="cursor-pointer rounded-xl bg-[var(--ph-green-dark)] px-4 py-2.5 text-sm font-bold text-white">
-                            Foto aufnehmen
-                            <input
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              className="hidden"
-                              onChange={(event) => {
-                                void addFiles(plant.id, event.target.files);
-                                event.target.value = "";
-                              }}
-                            />
-                          </label>
+
+                        <div className="mt-5 border-t border-slate-200 pt-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <strong className="text-sm text-slate-800">
+                                Fotos
+                              </strong>
+                              <p className="text-xs text-slate-500">
+                                Schäden, Topf und Gesamtansicht am besten getrennt
+                                fotografieren.
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <label className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-800">
+                                Bilder auswählen
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hidden"
+                                  onChange={(event) => {
+                                    void addFiles(plant.id, event.target.files);
+                                    event.target.value = "";
+                                  }}
+                                />
+                              </label>
+                              <label className="cursor-pointer rounded-xl bg-[var(--ph-green-dark)] px-4 py-2.5 text-sm font-bold text-white">
+                                Foto aufnehmen
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  className="hidden"
+                                  onChange={(event) => {
+                                    void addFiles(plant.id, event.target.files);
+                                    event.target.value = "";
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          </div>
+
+                          {(stored.length > 0 || pending.length > 0) && (
+                            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
+                              {stored.map((photo) => (
+                                <div
+                                  key={photo.id}
+                                  className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={photo.url}
+                                    alt={`${plant.name} – ${photo.originalName}`}
+                                    className="h-full w-full object-cover"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void deleteStoredPhoto(plant.id, photo.id)
+                                    }
+                                    className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-1 text-xs font-bold text-red-700 shadow"
+                                  >
+                                    Löschen
+                                  </button>
+                                </div>
+                              ))}
+                              {pending.map((photo) => (
+                                <div
+                                  key={photo.id}
+                                  className="relative aspect-square overflow-hidden rounded-xl border-2 border-dashed border-amber-400 bg-amber-50"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={photo.previewUrl}
+                                    alt="Neues Foto"
+                                    className="h-full w-full object-cover"
+                                  />
+                                  <span className="absolute bottom-2 left-2 rounded bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900">
+                                    Noch speichern
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      removePending(plant.id, photo.id)
+                                    }
+                                    className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-1 text-xs font-bold text-red-700 shadow"
+                                  >
+                                    Entfernen
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
-
-                      {(stored.length > 0 || pending.length > 0) && (
-                        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
-                          {stored.map((photo) => (
-                            <div
-                              key={photo.id}
-                              className="group relative aspect-square overflow-hidden rounded-xl bg-slate-100"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={photo.url}
-                                alt={`${plant.name} – ${photo.originalName}`}
-                                className="h-full w-full object-cover"
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void deleteStoredPhoto(plant.id, photo.id)
-                                }
-                                className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-1 text-xs font-bold text-red-700 shadow"
-                              >
-                                Löschen
-                              </button>
-                            </div>
-                          ))}
-                          {pending.map((photo) => (
-                            <div
-                              key={photo.id}
-                              className="relative aspect-square overflow-hidden rounded-xl border-2 border-dashed border-amber-400 bg-amber-50"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={photo.previewUrl}
-                                alt="Neues Foto"
-                                className="h-full w-full object-cover"
-                              />
-                              <span className="absolute bottom-2 left-2 rounded bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900">
-                                Noch speichern
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  removePending(plant.id, photo.id)
-                                }
-                                className="absolute right-2 top-2 rounded-full bg-white/95 px-2 py-1 text-xs font-bold text-red-700 shadow"
-                              >
-                                Entfernen
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    )}
                   </article>
                 );
               })}
+
+              {editor.plants.length > 0 && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={addPlant}
+                    className="w-full rounded-xl border border-[var(--ph-green-dark)] bg-white px-4 py-3 font-bold text-[var(--ph-green-dark)] sm:w-auto"
+                  >
+                    + Pflanze hinzufügen
+                  </button>
+                </div>
+              )}
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
