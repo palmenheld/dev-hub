@@ -4,13 +4,15 @@ import { findUserById } from "@/services/auth/store";
 
 const PUBLIC_PATHS = new Set([
   "/login",
+  "/manifest.webmanifest",
+  "/sw.js",
   "/api/auth/login",
   "/api/blog/cron",
   "/api/channels/ebay/oauth/callback",
 ]);
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/receipt/") || pathname.startsWith("/api/pos/receipts/");
+  return PUBLIC_PATHS.has(pathname) || pathname.startsWith("/icons/") || pathname.startsWith("/receipt/") || pathname.startsWith("/api/pos/receipts/");
 }
 
 export async function proxy(request: NextRequest) {

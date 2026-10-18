@@ -24,7 +24,7 @@ services:
     command:
       - sh
       - -lc
-      - npm ci && npm run build && npm run start -- --hostname 0.0.0.0
+      - export APP_VERSION="$$(git rev-parse --short HEAD 2>/dev/null || date +%s)" && npm ci && npm run build && npm run start -- --hostname 0.0.0.0
     environment:
       HOME: /tmp/palmenheld-preview-home
       NEXT_TELEMETRY_DISABLED: "1"

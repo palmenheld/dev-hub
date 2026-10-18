@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { navigation, type NavLink } from "@/config/navigation";
 import LogoutButton from "@/components/auth/LogoutButton";
+import { PwaInstallButton } from "@/components/pwa/PwaProvider";
 import type { PublicHubUser } from "@/types/auth";
 
 function linkIsActive(pathname: string, href: string) {
@@ -84,6 +85,7 @@ function SidebarFooter({ user }: { user: PublicHubUser }) {
       <div className="rounded-xl bg-white/5 px-4 py-3">
         <div className="font-semibold">{user.displayName}</div>
         <div className="text-sm text-white/70">{user.role === "admin" ? "Administrator" : "Bearbeiter"}</div>
+        <PwaInstallButton />
         <LogoutButton />
       </div>
     </div>
