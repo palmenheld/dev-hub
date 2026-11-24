@@ -87,10 +87,14 @@ export async function findWeclappArticleByNumber(articleNumber: string) {
 }
 
 export async function findWeclappOrderByShopwareNumber(orderNumber: string) {
+  return findWeclappOrderByCustomerReference(orderNumber);
+}
+
+export async function findWeclappOrderByCustomerReference(reference: string) {
   const matches = await exactList(
     "salesOrder",
     "orderNumberAtCustomer",
-    orderNumber,
+    reference,
     2
   );
   if (matches.length === 0) return null;

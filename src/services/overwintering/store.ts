@@ -6,6 +6,7 @@ import type {
   OverwinteringPhoto,
   OverwinteringRecord,
   OverwinteringRecordInput,
+  OverwinteringWeclappOrder,
 } from "@/types/overwintering";
 
 const dataDirectory =
@@ -168,6 +169,26 @@ export async function updateOverwinteringRecord(
         rm(path.join(photoDirectory, id, plant.id), { recursive: true, force: true })
       )
     );
+    return updated;
+  });
+}
+
+export async function updateOverwinteringOrder(
+  id: string,
+  order: OverwinteringWeclappOrder
+) {
+  assertUuid(id, "Überwinterungs-ID");
+  return withMutation(async () => {
+    const records = await listOverwinteringRecords();
+    const index = records.findIndex((record) => record.id === id);
+    if (index < 0) return null;
+    const updated: OverwinteringRecord = {
+      ...records[index],
+      weclappOrder: order,
+      updatedAt: new Date().toISOString(),
+    };
+    records[index] = updated;
+    await writeRecords(records);
     return updated;
   });
 }

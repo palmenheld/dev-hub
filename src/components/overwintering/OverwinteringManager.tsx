@@ -116,6 +116,8 @@ export default function OverwinteringManager({
   const [searchSettled, setSearchSettled] = useState(false);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [orderBusy, setOrderBusy] = useState(false);
+  const [orderPrices, setOrderPrices] = useState<Record<string, string>>({});
   const [progress, setProgress] = useState("");
   const [message, setMessage] = useState<{
     kind: "success" | "error";
@@ -200,6 +202,7 @@ export default function OverwinteringManager({
     setSearchSettled(false);
     setShowCreateCustomer(false);
     setMessage(null);
+    setOrderPrices({});
     window.setTimeout(
       () => editorRef.current?.scrollIntoView({ behavior: "smooth" }),
       0
@@ -216,10 +219,19 @@ export default function OverwinteringManager({
     setSearchSettled(false);
     setShowCreateCustomer(false);
     setMessage(null);
+    setOrderPrices(
+      Object.fromEntries(record.plants.map((plant) => [plant.id, ""]))
+    );
     window.setTimeout(
       () => editorRef.current?.scrollIntoView({ behavior: "smooth" }),
       0
     );
+    if (record.weclappOrder?.id && !record.weclappOrder.invoiceCreated) {
+      window.setTimeout(
+        () => void refreshOrderStatus(record.id, true),
+        0
+      );
+    }
   }
 
   function selectCustomer(customer: WeclappCustomerSearchResult) {
@@ -229,6 +241,7 @@ export default function OverwinteringManager({
     setSearchSettled(false);
     setShowCreateCustomer(false);
     setMessage(null);
+    setOrderPrices({});
   }
 
   function replaceRecord(record: OverwinteringRecord) {
@@ -411,20 +424,20 @@ export default function OverwinteringManager({
   }
 
   async function save() {
-    if (!editor.id || !editor.customer || saving) return;
+    if (!editor.id || !editor.customer || saving) return null;
     if (!editor.plants.length) {
       setMessage({
         kind: "error",
         text: "Bitte mindestens eine Pflanze hinzufügen.",
       });
-      return;
+      return null;
     }
     if (editor.plants.some((plant) => !plant.name.trim())) {
       setMessage({
         kind: "error",
         text: "Bitte jeder Pflanzenzeile einen Namen geben.",
       });
-      return;
+      return null;
     }
     setSaving(true);
     setMessage(null);
@@ -471,15 +484,111 @@ export default function OverwinteringManager({
         kind: "success",
         text: `Überwinterung für ${saved.customer.displayName} mit ${saved.plants.length} ${saved.plants.length === 1 ? "Pflanze" : "Pflanzen"} gespeichert.`,
       });
+      return saved;
     } catch (error) {
       setMessage({
         kind: "error",
         text:
           error instanceof Error ? error.message : "Speichern fehlgeschlagen.",
       });
+      return null;
     } finally {
       setSaving(false);
       setProgress("");
+    }
+  }
+
+  async function createOrder() {
+    if (!editor.id || saving || orderBusy) return;
+    const invalidPrice = editor.plants.find((plant) => {
+      const raw = orderPrices[plant.id]?.trim() ?? "";
+      const value = Number(raw.replace(",", "."));
+      return !raw || !Number.isFinite(value) || value < 0;
+    });
+    if (invalidPrice) {
+      setMessage({
+        kind: "error",
+        text: `Bitte einen gültigen Preis für „${invalidPrice.name || "Pflanze"}“ eingeben.`,
+      });
+      return;
+    }
+    if (
+      !window.confirm(
+        `Jetzt einen weclapp-Auftrag mit ${editor.plants.length} ${editor.plants.length === 1 ? "Position" : "Positionen"} anlegen?`
+      )
+    ) {
+      return;
+    }
+    setOrderBusy(true);
+    setMessage(null);
+    try {
+      const saved = await save();
+      if (!saved) return;
+      setProgress("weclapp-Auftrag wird angelegt …");
+      const payload = await json<{ record: OverwinteringRecord }>(
+        await fetch(`/api/overwintering/${saved.id}/order`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prices: orderPrices }),
+        })
+      );
+      replaceRecord(payload.record);
+      setOrderPrices({});
+      setMessage({
+        kind: "success",
+        text: `weclapp-Auftrag ${payload.record.weclappOrder?.orderNumber || payload.record.weclappOrder?.id || ""} wurde angelegt.`,
+      });
+    } catch (error) {
+      setMessage({
+        kind: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Der weclapp-Auftrag konnte nicht angelegt werden.",
+      });
+    } finally {
+      setOrderBusy(false);
+      setProgress("");
+    }
+  }
+
+  async function refreshOrderStatus(recordId: string, silent = false) {
+    if (orderBusy) return;
+    setOrderBusy(true);
+    if (!silent) {
+      setMessage(null);
+      setProgress("Rechnungsstatus wird aus weclapp geladen …");
+    }
+    try {
+      const payload = await json<{ record: OverwinteringRecord }>(
+        await fetch(`/api/overwintering/${recordId}/order`, {
+          method: "PUT",
+        })
+      );
+      setRecords((current) =>
+        [payload.record, ...current.filter((item) => item.id !== payload.record.id)].sort(
+          (a, b) => b.updatedAt.localeCompare(a.updatedAt)
+        )
+      );
+      if (!silent) {
+        setMessage({
+          kind: "success",
+          text: payload.record.weclappOrder?.invoiceCreated
+            ? `Rechnung ${payload.record.weclappOrder.invoiceNumber || ""} wurde erkannt.`
+            : "Für diesen Auftrag wurde in weclapp noch keine Rechnung gefunden.",
+        });
+      }
+    } catch (error) {
+      setMessage({
+        kind: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Der Rechnungsstatus konnte nicht geladen werden.",
+      });
+    } finally {
+      setOrderBusy(false);
+      if (!silent) setProgress("");
     }
   }
 
@@ -534,6 +643,15 @@ export default function OverwinteringManager({
                     {record.plants.length === 1 ? "Pflanze" : "Pflanzen"} ·{" "}
                     {photoCount} Fotos
                   </span>
+                  {record.weclappOrder && (
+                    <span
+                      className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${record.weclappOrder.invoiceCreated ? "bg-green-100 text-green-900" : "bg-blue-100 text-blue-900"}`}
+                    >
+                      {record.weclappOrder.invoiceCreated
+                        ? `✓ Rechnung erstellt${record.weclappOrder.invoiceNumber ? ` · ${record.weclappOrder.invoiceNumber}` : ""}`
+                        : `Auftrag ${record.weclappOrder.orderNumber || "erstellt"}`}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -977,6 +1095,117 @@ export default function OverwinteringManager({
               </label>
             </section>
 
+            <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-xl text-[var(--ph-green-dark)]">
+                    weclapp-Auftrag
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Pro Pflanze wird Artikel 102000012 mit dem Pflanzennamen als
+                    Positionstext übernommen. Den Preis legst du frei fest.
+                  </p>
+                </div>
+                {currentRecord?.weclappOrder?.invoiceCreated && (
+                  <span className="rounded-full bg-green-100 px-3 py-1.5 text-sm font-bold text-green-900">
+                    ✓ Rechnung erstellt
+                  </span>
+                )}
+              </div>
+
+              {currentRecord?.weclappOrder ? (
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <span className="block text-xs font-bold uppercase text-slate-500">
+                        Auftrag
+                      </span>
+                      <strong>
+                        {currentRecord.weclappOrder.orderNumber ||
+                          currentRecord.weclappOrder.id}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="block text-xs font-bold uppercase text-slate-500">
+                        Rechnungsstatus
+                      </span>
+                      <strong>
+                        {currentRecord.weclappOrder.invoiceCreated
+                          ? currentRecord.weclappOrder.invoiceNumber ||
+                            "Rechnung erstellt"
+                          : "Noch keine Rechnung"}
+                      </strong>
+                    </div>
+                    <div className="flex items-end sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void refreshOrderStatus(currentRecord.id)
+                        }
+                        disabled={orderBusy}
+                        className="rounded-xl border border-[var(--ph-green-dark)] bg-white px-4 py-2.5 text-sm font-bold text-[var(--ph-green-dark)] disabled:opacity-50"
+                      >
+                        {orderBusy
+                          ? "Status wird geladen …"
+                          : "Status aus weclapp aktualisieren"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-4">
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <div className="hidden grid-cols-[minmax(0,1fr)_140px_180px] gap-3 bg-slate-50 px-4 py-2 text-xs font-bold uppercase text-slate-500 sm:grid">
+                      <span>Pflanze / Positionstext</span>
+                      <span>Artikelnummer</span>
+                      <span>Preis in €</span>
+                    </div>
+                    <div className="divide-y">
+                      {editor.plants.map((plant) => (
+                        <div
+                          key={plant.id}
+                          className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_140px_180px] sm:items-center"
+                        >
+                          <strong className="min-w-0 truncate">
+                            {plant.name || "Pflanzenname fehlt"}
+                          </strong>
+                          <span className="font-mono text-sm">102000012</span>
+                          <label>
+                            <span className="mb-1 block text-xs font-bold text-slate-500 sm:hidden">
+                              Preis in €
+                            </span>
+                            <input
+                              value={orderPrices[plant.id] ?? ""}
+                              onChange={(event) =>
+                                setOrderPrices((current) => ({
+                                  ...current,
+                                  [plant.id]: event.target.value,
+                                }))
+                              }
+                              inputMode="decimal"
+                              className={inputClass}
+                              placeholder="0,00"
+                              aria-label={`Preis für ${plant.name || "Pflanze"}`}
+                            />
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void createOrder()}
+                    disabled={saving || orderBusy || !editor.plants.length}
+                    className="mt-4 w-full rounded-xl bg-[var(--ph-green-dark)] px-5 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                  >
+                    {orderBusy
+                      ? "Auftrag wird angelegt …"
+                      : "Auftrag in weclapp erstellen"}
+                  </button>
+                </div>
+              )}
+            </section>
+
             <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur sm:flex-row sm:items-center sm:justify-between">
               <span className="text-sm font-medium text-slate-600">
                 {progress ||
@@ -985,7 +1214,7 @@ export default function OverwinteringManager({
               <button
                 type="button"
                 onClick={() => void save()}
-                disabled={saving || !editor.plants.length}
+                disabled={saving || orderBusy || !editor.plants.length}
                 className="rounded-xl bg-[var(--ph-green-dark)] px-6 py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? "Wird gespeichert …" : "Änderungen speichern"}

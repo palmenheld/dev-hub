@@ -115,11 +115,26 @@ export type OverwinteringPlant = {
 
 export type OverwinteringCustomer = WeclappCustomerSearchResult;
 
+export type OverwinteringWeclappOrder = {
+  id: string;
+  orderNumber?: string;
+  reference: string;
+  createdAt: string;
+  checkedAt?: string;
+  status?: string;
+  invoiceStatus?: string;
+  invoiceCreated: boolean;
+  invoiceId?: string;
+  invoiceNumber?: string;
+  invoiceCreatedAt?: string;
+};
+
 export type OverwinteringRecord = {
   id: string;
   customer: OverwinteringCustomer;
   plants: OverwinteringPlant[];
   notes: string;
+  weclappOrder?: OverwinteringWeclappOrder;
   createdAt: string;
   updatedAt: string;
 };
