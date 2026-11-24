@@ -48,6 +48,7 @@ function cleanDefaults(defaults: UnknownRecord) {
     "version",
     "createdDate",
     "lastModifiedDate",
+    "cost",
     "grossAmount",
     "grossAmountInCompanyCurrency",
     "netAmount",

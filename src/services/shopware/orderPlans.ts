@@ -51,6 +51,7 @@ function cleanDefaults(defaults: Record<string, unknown>) {
     "version",
     "createdDate",
     "lastModifiedDate",
+    "cost",
     "grossAmount",
     "grossAmountInCompanyCurrency",
     "netAmount",
