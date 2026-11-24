@@ -118,6 +118,7 @@ export type OverwinteringCustomer = WeclappCustomerSearchResult;
 export type OverwinteringWeclappOrder = {
   id: string;
   orderNumber?: string;
+  url?: string;
   reference: string;
   createdAt: string;
   checkedAt?: string;
@@ -126,7 +127,20 @@ export type OverwinteringWeclappOrder = {
   invoiceCreated: boolean;
   invoiceId?: string;
   invoiceNumber?: string;
+  invoiceUrl?: string;
   invoiceCreatedAt?: string;
+};
+
+export type OverwinteringOrderCandidate = {
+  id: string;
+  orderNumber: string;
+  orderDate?: string;
+  customerReference?: string;
+  status?: string;
+  grossAmount?: string;
+  currency?: string;
+  likelyOverwintering: boolean;
+  url: string;
 };
 
 export type OverwinteringRecord = {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import WeclappCustomerCreateForm from "./WeclappCustomerCreateForm";
 import type {
   OverwinteringCustomer,
+  OverwinteringOrderCandidate,
   OverwinteringPlantInput,
   OverwinteringRecord,
   WeclappCustomerSearchResult,
@@ -118,6 +119,12 @@ export default function OverwinteringManager({
   const [saving, setSaving] = useState(false);
   const [orderBusy, setOrderBusy] = useState(false);
   const [orderPrices, setOrderPrices] = useState<Record<string, string>>({});
+  const [orderCandidates, setOrderCandidates] = useState<
+    OverwinteringOrderCandidate[]
+  >([]);
+  const [orderCandidateQuery, setOrderCandidateQuery] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState("");
+  const [orderCandidatesLoaded, setOrderCandidatesLoaded] = useState(false);
   const [progress, setProgress] = useState("");
   const [message, setMessage] = useState<{
     kind: "success" | "error";
@@ -140,6 +147,18 @@ export default function OverwinteringManager({
       ].some((value) => value.toLocaleLowerCase("de").includes(query))
     );
   }, [recordFilter, records]);
+  const visibleOrderCandidates = useMemo(() => {
+    const query = orderCandidateQuery.trim().toLocaleLowerCase("de");
+    if (!query) return orderCandidates;
+    return orderCandidates.filter((order) =>
+      [
+        order.orderNumber,
+        order.customerReference,
+        order.status,
+        order.grossAmount,
+      ].some((value) => value?.toLocaleLowerCase("de").includes(query))
+    );
+  }, [orderCandidateQuery, orderCandidates]);
 
   useEffect(() => {
     if (editor.customer || editor.id || showCreateCustomer) return;
@@ -192,6 +211,13 @@ export default function OverwinteringManager({
       .forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
   }
 
+  function resetOrderCandidates() {
+    setOrderCandidates([]);
+    setOrderCandidateQuery("");
+    setSelectedOrderId("");
+    setOrderCandidatesLoaded(false);
+  }
+
   function startNew() {
     releasePending();
     setEditor(emptyEditor());
@@ -203,6 +229,7 @@ export default function OverwinteringManager({
     setShowCreateCustomer(false);
     setMessage(null);
     setOrderPrices({});
+    resetOrderCandidates();
     window.setTimeout(
       () => editorRef.current?.scrollIntoView({ behavior: "smooth" }),
       0
@@ -222,11 +249,17 @@ export default function OverwinteringManager({
     setOrderPrices(
       Object.fromEntries(record.plants.map((plant) => [plant.id, ""]))
     );
+    resetOrderCandidates();
     window.setTimeout(
       () => editorRef.current?.scrollIntoView({ behavior: "smooth" }),
       0
     );
-    if (record.weclappOrder?.id && !record.weclappOrder.invoiceCreated) {
+    if (
+      record.weclappOrder?.id &&
+      (!record.weclappOrder.url ||
+        !record.weclappOrder.invoiceCreated ||
+        (record.weclappOrder.invoiceCreated && !record.weclappOrder.invoiceUrl))
+    ) {
       window.setTimeout(
         () => void refreshOrderStatus(record.id, true),
         0
@@ -242,6 +275,7 @@ export default function OverwinteringManager({
     setShowCreateCustomer(false);
     setMessage(null);
     setOrderPrices({});
+    resetOrderCandidates();
   }
 
   function replaceRecord(record: OverwinteringRecord) {
@@ -589,6 +623,82 @@ export default function OverwinteringManager({
     } finally {
       setOrderBusy(false);
       if (!silent) setProgress("");
+    }
+  }
+
+  async function loadExistingOrders() {
+    if (!editor.id || orderBusy) return;
+    setOrderBusy(true);
+    setMessage(null);
+    setProgress("Bestehende Aufträge des Kunden werden geladen …");
+    try {
+      const payload = await json<{ orders: OverwinteringOrderCandidate[] }>(
+        await fetch(`/api/overwintering/${editor.id}/order`, {
+          cache: "no-store",
+        })
+      );
+      setOrderCandidates(payload.orders);
+      setOrderCandidatesLoaded(true);
+      setSelectedOrderId(payload.orders[0]?.id ?? "");
+      setMessage({
+        kind: "success",
+        text: `${payload.orders.length} bestehende ${payload.orders.length === 1 ? "Auftrag" : "Aufträge"} für diesen Kunden geladen.`,
+      });
+    } catch (error) {
+      setMessage({
+        kind: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Die bestehenden Aufträge konnten nicht geladen werden.",
+      });
+    } finally {
+      setOrderBusy(false);
+      setProgress("");
+    }
+  }
+
+  async function attachExistingOrder() {
+    if (!editor.id || !selectedOrderId || saving || orderBusy) return;
+    const candidate = orderCandidates.find(
+      (order) => order.id === selectedOrderId
+    );
+    if (
+      !window.confirm(
+        `Auftrag ${candidate?.orderNumber || selectedOrderId} mit dieser Überwinterung verknüpfen?`
+      )
+    ) {
+      return;
+    }
+    setOrderBusy(true);
+    setMessage(null);
+    try {
+      const saved = await save();
+      if (!saved) return;
+      setProgress("Bestehender weclapp-Auftrag wird verknüpft …");
+      const payload = await json<{ record: OverwinteringRecord }>(
+        await fetch(`/api/overwintering/${saved.id}/order`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: selectedOrderId }),
+        })
+      );
+      replaceRecord(payload.record);
+      setMessage({
+        kind: "success",
+        text: `weclapp-Auftrag ${payload.record.weclappOrder?.orderNumber || selectedOrderId} wurde verknüpft.`,
+      });
+    } catch (error) {
+      setMessage({
+        kind: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Der weclapp-Auftrag konnte nicht verknüpft werden.",
+      });
+    } finally {
+      setOrderBusy(false);
+      setProgress("");
     }
   }
 
@@ -1120,21 +1230,48 @@ export default function OverwinteringManager({
                       <span className="block text-xs font-bold uppercase text-slate-500">
                         Auftrag
                       </span>
-                      <strong>
-                        {currentRecord.weclappOrder.orderNumber ||
-                          currentRecord.weclappOrder.id}
-                      </strong>
+                      {currentRecord.weclappOrder.url ? (
+                        <a
+                          href={currentRecord.weclappOrder.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-bold text-[var(--ph-green-dark)] underline decoration-green-300 underline-offset-4"
+                        >
+                          {currentRecord.weclappOrder.orderNumber ||
+                            currentRecord.weclappOrder.id}{" "}
+                          ↗
+                        </a>
+                      ) : (
+                        <strong>
+                          {currentRecord.weclappOrder.orderNumber ||
+                            currentRecord.weclappOrder.id}
+                        </strong>
+                      )}
                     </div>
                     <div>
                       <span className="block text-xs font-bold uppercase text-slate-500">
                         Rechnungsstatus
                       </span>
-                      <strong>
-                        {currentRecord.weclappOrder.invoiceCreated
-                          ? currentRecord.weclappOrder.invoiceNumber ||
-                            "Rechnung erstellt"
-                          : "Noch keine Rechnung"}
-                      </strong>
+                      {currentRecord.weclappOrder.invoiceCreated &&
+                      currentRecord.weclappOrder.invoiceUrl ? (
+                        <a
+                          href={currentRecord.weclappOrder.invoiceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-bold text-[var(--ph-green-dark)] underline decoration-green-300 underline-offset-4"
+                        >
+                          {currentRecord.weclappOrder.invoiceNumber ||
+                            "Rechnung öffnen"}{" "}
+                          ↗
+                        </a>
+                      ) : (
+                        <strong>
+                          {currentRecord.weclappOrder.invoiceCreated
+                            ? currentRecord.weclappOrder.invoiceNumber ||
+                              "Rechnung erstellt"
+                            : "Noch keine Rechnung"}
+                        </strong>
+                      )}
                     </div>
                     <div className="flex items-end sm:justify-end">
                       <button
@@ -1202,6 +1339,87 @@ export default function OverwinteringManager({
                       ? "Auftrag wird angelegt …"
                       : "Auftrag in weclapp erstellen"}
                   </button>
+
+                  <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-4">
+                    <h3 className="font-bold text-[var(--ph-green-dark)]">
+                      Bereits vorhandenen Auftrag verknüpfen
+                    </h3>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Falls der Überwinterungsauftrag außerhalb des Hubs erstellt
+                      wurde, kannst du ihn aus allen Aufträgen dieses Kunden
+                      auswählen. Wahrscheinliche Überwinterungsaufträge stehen
+                      zuerst.
+                    </p>
+                    {!orderCandidatesLoaded ? (
+                      <button
+                        type="button"
+                        onClick={() => void loadExistingOrders()}
+                        disabled={orderBusy}
+                        className="mt-3 rounded-xl border border-[var(--ph-green-dark)] bg-white px-4 py-2.5 text-sm font-bold text-[var(--ph-green-dark)] disabled:opacity-50"
+                      >
+                        {orderBusy
+                          ? "Aufträge werden geladen …"
+                          : "Bestehende Aufträge laden"}
+                      </button>
+                    ) : orderCandidates.length === 0 ? (
+                      <p className="mt-3 rounded-lg bg-white p-3 text-sm text-slate-600">
+                        Für diesen Kunden wurden keine vorhandenen Aufträge
+                        gefunden.
+                      </p>
+                    ) : (
+                      <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] lg:items-end">
+                        <label>
+                          <span className="mb-1 block text-xs font-bold text-slate-600">
+                            Aufträge durchsuchen
+                          </span>
+                          <input
+                            value={orderCandidateQuery}
+                            onChange={(event) => {
+                              setOrderCandidateQuery(event.target.value);
+                              setSelectedOrderId("");
+                            }}
+                            className={inputClass}
+                            placeholder="Auftragsnummer, Status oder Betrag"
+                          />
+                        </label>
+                        <label>
+                          <span className="mb-1 block text-xs font-bold text-slate-600">
+                            Bestehender Auftrag
+                          </span>
+                          <select
+                            value={selectedOrderId}
+                            onChange={(event) =>
+                              setSelectedOrderId(event.target.value)
+                            }
+                            className={inputClass}
+                          >
+                            <option value="">Bitte auswählen</option>
+                            {visibleOrderCandidates.map((order) => (
+                              <option key={order.id} value={order.id}>
+                                {order.likelyOverwintering ? "★ " : ""}
+                                {order.orderNumber}
+                                {order.orderDate
+                                  ? ` · ${new Date(order.orderDate).toLocaleDateString("de-DE")}`
+                                  : ""}
+                                {order.status ? ` · ${order.status}` : ""}
+                                {order.grossAmount
+                                  ? ` · ${order.grossAmount} ${order.currency || "€"}`
+                                  : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => void attachExistingOrder()}
+                          disabled={!selectedOrderId || orderBusy || saving}
+                          className="rounded-xl bg-[var(--ph-green-dark)] px-4 py-3 font-bold text-white disabled:opacity-50"
+                        >
+                          Verknüpfen
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </section>

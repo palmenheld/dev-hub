@@ -1,8 +1,13 @@
 import type {
+  OverwinteringOrderCandidate,
   OverwinteringRecord,
   OverwinteringWeclappOrder,
 } from "@/types/overwintering";
-import { WeclappHttpError, weclappRequest } from "@/services/weclapp/client";
+import {
+  getWeclappConfiguration,
+  WeclappHttpError,
+  weclappRequest,
+} from "@/services/weclapp/client";
 import {
   createWeclappSalesOrder,
   findWeclappArticleByNumber,
@@ -68,6 +73,27 @@ function referenceFor(recordId: string) {
   return `PH-UEB-${recordId}`;
 }
 
+function weclappViewUrl(entity: "salesOrder" | "salesInvoice", id: string) {
+  const { tenantBaseUrl } = getWeclappConfiguration();
+  return `${tenantBaseUrl}/webapp/view/${entity}/${encodeURIComponent(id)}`;
+}
+
+function dateFrom(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const milliseconds = value < 10_000_000_000 ? value * 1_000 : value;
+    return new Date(milliseconds).toISOString();
+  }
+  const valueText = text(value);
+  if (!valueText) return undefined;
+  const numeric = Number(valueText);
+  if (Number.isFinite(numeric)) {
+    const milliseconds = numeric < 10_000_000_000 ? numeric * 1_000 : numeric;
+    return new Date(milliseconds).toISOString();
+  }
+  const parsed = Date.parse(valueText);
+  return Number.isNaN(parsed) ? undefined : new Date(parsed).toISOString();
+}
+
 function parsePrices(record: OverwinteringRecord, input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error("Bitte für jede Pflanze einen Preis eingeben.");
@@ -99,6 +125,7 @@ async function persistCreatedOrder(
   const state: OverwinteringWeclappOrder = {
     id,
     orderNumber: text(order.orderNumber) || undefined,
+    url: weclappViewUrl("salesOrder", id),
     reference,
     createdAt: now,
     checkedAt: now,
@@ -111,6 +138,126 @@ async function persistCreatedOrder(
     throw new Error("Die Überwinterungsakte wurde nicht mehr gefunden.");
   }
   return saved;
+}
+
+function belongsToCustomer(order: UnknownRecord, customerId: string) {
+  const nestedCustomer =
+    order.customer &&
+    typeof order.customer === "object" &&
+    !Array.isArray(order.customer)
+      ? (order.customer as UnknownRecord)
+      : undefined;
+  return (
+    text(order.customerId) === customerId ||
+    text(order.customerPartyId) === customerId ||
+    text(nestedCustomer?.id) === customerId
+  );
+}
+
+export async function listOverwinteringCustomerOrders(recordId: string) {
+  const record = await getOverwinteringRecord(recordId);
+  if (!record) throw new Error("Die Überwinterungsakte wurde nicht gefunden.");
+
+  const article = await findWeclappArticleByNumber(
+    OVERWINTERING_ARTICLE_NUMBER
+  ).catch(() => null);
+  const rows: UnknownRecord[] = [];
+  const pageSize = 100;
+  let includeOrderItems = true;
+  for (let page = 1; page <= 10; page += 1) {
+    let response: ListResponse;
+    try {
+      response = await weclappRequest<ListResponse>("salesOrder", {
+        query: {
+          page,
+          pageSize,
+          "customerId-eq": record.customer.id,
+          ...(includeOrderItems
+            ? { additionalProperties: "orderItems" }
+            : {}),
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof WeclappHttpError) || error.status !== 400) {
+        throw error;
+      }
+      includeOrderItems = false;
+      response = await weclappRequest<ListResponse>("salesOrder", {
+        query: {
+          page,
+          pageSize,
+          "customerId-eq": record.customer.id,
+        },
+      });
+    }
+    const pageRows = response.result ?? [];
+    rows.push(...pageRows);
+    if (pageRows.length < pageSize) break;
+  }
+
+  return rows
+    .filter((order) => text(order.id))
+    .map((order): OverwinteringOrderCandidate => {
+      const id = text(order.id);
+      const customerReference = text(order.orderNumberAtCustomer);
+      const note = text(order.note).toLocaleLowerCase("de");
+      const items = Array.isArray(order.orderItems)
+        ? (order.orderItems as UnknownRecord[])
+        : [];
+      const likelyOverwintering =
+        customerReference.startsWith("PH-UEB-") ||
+        note.includes("überwinter") ||
+        items.some((item) => article?.id && text(item.articleId) === article.id);
+      return {
+        id,
+        orderNumber: text(order.orderNumber) || id,
+        orderDate: dateFrom(order.orderDate ?? order.createdDate),
+        customerReference: customerReference || undefined,
+        status: text(order.status) || undefined,
+        grossAmount: text(order.grossAmount) || undefined,
+        currency:
+          text(order.currencyName) || text(order.currencyCode) || undefined,
+        likelyOverwintering,
+        url: weclappViewUrl("salesOrder", id),
+      };
+    })
+    .sort((a, b) => {
+      if (a.likelyOverwintering !== b.likelyOverwintering) {
+        return a.likelyOverwintering ? -1 : 1;
+      }
+      return (b.orderDate ?? "").localeCompare(a.orderDate ?? "");
+    });
+}
+
+export async function attachExistingOverwinteringOrder(
+  recordId: string,
+  orderId: string
+) {
+  const record = await getOverwinteringRecord(recordId);
+  if (!record) throw new Error("Die Überwinterungsakte wurde nicht gefunden.");
+  if (record.weclappOrder?.id) {
+    throw new Error("Diese Überwinterung ist bereits mit einem Auftrag verknüpft.");
+  }
+  const normalizedOrderId = orderId.trim();
+  if (!/^[A-Za-z0-9_-]{1,100}$/u.test(normalizedOrderId)) {
+    throw new Error("Bitte einen gültigen weclapp-Auftrag auswählen.");
+  }
+  const order = unwrap(
+    await weclappRequest<UnknownRecord>(
+      `salesOrder/id/${encodeURIComponent(normalizedOrderId)}`
+    )
+  );
+  if (!belongsToCustomer(order, record.customer.id)) {
+    throw new Error(
+      "Der ausgewählte Auftrag gehört nicht zum Kunden dieser Überwinterungsakte."
+    );
+  }
+  const saved = await persistCreatedOrder(
+    record,
+    order,
+    text(order.orderNumberAtCustomer) || `WECLAPP-${normalizedOrderId}`
+  );
+  return refreshOverwinteringInvoiceStatus(saved.id);
 }
 
 export async function createOverwinteringSalesOrder(
@@ -240,6 +387,7 @@ export async function refreshOverwinteringInvoiceStatus(recordId: string) {
   const state: OverwinteringWeclappOrder = {
     ...record.weclappOrder,
     orderNumber: text(raw.orderNumber) || record.weclappOrder.orderNumber,
+    url: weclappViewUrl("salesOrder", record.weclappOrder.id),
     checkedAt: now,
     status: text(raw.status) || undefined,
     invoiceStatus: text(raw.invoiceStatus) || undefined,
@@ -247,6 +395,9 @@ export async function refreshOverwinteringInvoiceStatus(recordId: string) {
     invoiceId: text(invoice?.id) || record.weclappOrder.invoiceId,
     invoiceNumber:
       text(invoice?.invoiceNumber) || record.weclappOrder.invoiceNumber,
+    invoiceUrl: text(invoice?.id)
+      ? weclappViewUrl("salesInvoice", text(invoice?.id))
+      : record.weclappOrder.invoiceUrl,
     invoiceCreatedAt: invoiceCreated
       ? record.weclappOrder.invoiceCreatedAt || now
       : undefined,
